@@ -343,7 +343,10 @@ class Router
 
             require_once($controller_file);
 
-            $instance = new $controller();
+            $controller_class = class_exists($controller)
+                ? $controller
+                : 'App\\Controllers\\' . $controller;
+            $instance = new $controller_class();
 
             if (!method_exists($instance, $method)) {
                 throw new RuntimeException("Method {$controller}->{$method} does not exist.");
@@ -375,7 +378,10 @@ class Router
 
             require_once($controller_file);
 
-            $instance = new $controller();
+            $controller_class = class_exists($controller)
+                ? $controller
+                : 'App\\Controllers\\' . $controller;
+            $instance = new $controller_class();
 
             if (!method_exists($instance, $method)) {
                 throw new RuntimeException("Method {$controller}->{$method} does not exist.");
