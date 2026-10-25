@@ -8,7 +8,7 @@ use App\Models\Reservation;
 use App\Models\AssetBorrowing;
 use App\Models\MaintenanceRecord;
 
-class ReportsController extends \Lava\Routing\Controller
+class ReportsController extends \Controller
 {
     public function facilityUsage()
     {

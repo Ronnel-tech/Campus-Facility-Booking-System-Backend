@@ -8,7 +8,7 @@ use App\Models\Reservation;
 use App\Models\Asset;
 use App\Models\Facility;
 
-class AdminController extends \Lava\Routing\Controller
+class AdminController extends \Controller
 {
     public function dashboard()
     {

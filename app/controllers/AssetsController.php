@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 
-class AssetsController extends \Lava\Routing\Controller
+class AssetsController extends \Controller
 {
     public function index()
     {

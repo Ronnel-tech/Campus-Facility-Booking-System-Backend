@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Models\UserProfile;
 use App\Models\NotificationPreference;
 
-class UsersController extends \Lava\Routing\Controller
+class UsersController extends \Controller
 {
     public function getProfile()
     {

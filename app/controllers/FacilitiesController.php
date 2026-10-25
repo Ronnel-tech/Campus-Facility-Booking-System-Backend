@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 
-class FacilitiesController extends \Lava\Routing\Controller
+class FacilitiesController extends \Controller
 {
     public function index()
     {

@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Models\User;
 use App\Models\UserProfile;
 
-class AuthController extends \Lava\Routing\Controller
+class AuthController extends \Controller
 {
     public function register()
     {

@@ -7,7 +7,7 @@ use App\Models\ReservationAsset;
 use App\Models\Asset;
 use App\Models\Facility;
 
-class ReservationsController extends \Lava\Routing\Controller
+class ReservationsController extends \Controller
 {
     public function index()
     {

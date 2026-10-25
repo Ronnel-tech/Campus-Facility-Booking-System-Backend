@@ -4,15 +4,15 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 // ==========================================
 // CORS Configuration for Vercel Frontend
 // ==========================================
-$allowed_origins_env = $_ENV['ALLOWED_ORIGINS'] ?? 'https://booking-beryl-beta.vercel.app,http://localhost:5173,http://127.0.0.1:5173';
-$allowed_origins = array_map('trim', explode(',', $allowed_origins_env));
+$allowed_origins_env = $_ENV['ALLOWED_ORIGINS'] ?? $_ENV['ALLOWED_ORIGIN'] ?? 'https://booking-beryl-beta.vercel.app,http://localhost:5173,http://127.0.0.1:5173';
+$allowed_origins = array_values(array_filter(array_map('trim', explode(',', $allowed_origins_env))));
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 if (in_array($origin, $allowed_origins)) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
     header('Access-Control-Allow-Credentials: true');
 }
 

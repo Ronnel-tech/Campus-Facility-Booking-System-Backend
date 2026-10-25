@@ -4,7 +4,7 @@ namespace App\Controllers;
 
 use App\Models\Notification;
 
-class NotificationsController extends \Lava\Routing\Controller
+class NotificationsController extends \Controller
 {
     public function index()
     {
