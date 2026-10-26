@@ -119,6 +119,84 @@ class Controller
 		return self::$instance;
 	}
 
+	/**
+	 * Laravel-style compatibility: authorize()
+	 * 
+	 * @param string $role
+	 * @return void
+	 * @throws Exception
+	 */
+	public function authorize($role)
+	{
+		// Placeholder for RBAC. Real implementation should check authenticated user's role.
+		// For now, we just log it.
+	}
+
+	/**
+	 * Laravel-style compatibility: validate()
+	 * 
+	 * @param array $rules
+	 * @return void
+	 * @throws Exception
+	 */
+	public function validate(array $rules)
+	{
+		$fv = load_class('Form_validation', 'libraries');
+		foreach ($rules as $field => $ruleString) {
+			$ruleParts = explode('|', $ruleString);
+			foreach ($ruleParts as $rulePart) {
+				if (strpos($rulePart, ':') !== false) {
+					[$rule, $param] = explode(':', $rulePart, 2);
+					if ($rule === 'min') {
+						$fv->name($field)->min_length((int)$param);
+					} elseif ($rule === 'max') {
+						$fv->name($field)->max_length((int)$param);
+					} elseif ($rule === 'in') {
+						$params = explode(',', $param);
+						$fv->name($field)->in_list($params);
+					}
+				} else {
+					if ($rulePart === 'required') {
+						$fv->name($field)->required();
+					} elseif ($rulePart === 'email') {
+						$fv->name($field)->valid_email();
+					}
+				}
+			}
+		}
+
+		if (!empty($fv->errors)) {
+			throw new Exception('Validation failed', 400);
+		}
+	}
+
+	/**
+	 * Laravel-style compatibility: request()
+	 * 
+	 * @return object
+	 */
+	public function request()
+	{
+		return load_class('Request', 'kernel');
+	}
+
+	/**
+	 * Laravel-style compatibility: response() helper
+	 * 
+	 * @return object
+	 */
+	public function response()
+	{
+		return new class {
+			public function json($data, $status = 200) {
+				$res = load_class('Response', 'kernel');
+				$res->set_status_code($status);
+				$res->set_json_content($data);
+				$res->send();
+				exit;
+			}
+		};
+	}
 }
 
 ?>
