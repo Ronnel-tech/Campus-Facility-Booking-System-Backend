@@ -243,6 +243,12 @@ class Form_validation {
     public function __construct()
     {
         $this->LAVA = lava_instance();
+        if (empty($_POST) && stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
+            $json = json_decode(file_get_contents('php://input'), true);
+            if (is_array($json)) {
+                $_POST = $json;
+            }
+        }
         foreach($_POST as $key => $value)
         {
             $this->post_arrays[$key] = $value;
@@ -439,7 +445,7 @@ class Form_validation {
     {
         if (! is_numeric($length)) return FALSE;
 
-        if (strlen($this->value) < (int) $length)
+        if (strlen((string) $this->value) < (int) $length)
         {
             $this->set_error_message($custom_error, self::$err_min_length, $this->name, $length);
         }
@@ -669,7 +675,8 @@ class Form_validation {
      */
     public function in_list($list, $custom_error = '')
     {
-        if(! in_array($this->value, explode(',', $list), TRUE))
+        $allowed = is_array($list) ? $list : explode(',', (string) $list);
+        if(! in_array($this->value, $allowed, TRUE))
         {
             $this->set_error_message($custom_error, self::$err_in_list, $this->value);
         }

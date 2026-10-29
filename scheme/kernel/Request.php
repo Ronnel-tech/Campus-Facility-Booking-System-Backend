@@ -68,6 +68,14 @@ class Request
      */
     public function __construct()
     {
+        if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false && empty($_POST))
+        {
+            $json = json_decode(file_get_contents('php://input'), true);
+            if (is_array($json)) {
+                $_POST = $json;
+            }
+        }
+
         /**
          * Load Security Instance
          */

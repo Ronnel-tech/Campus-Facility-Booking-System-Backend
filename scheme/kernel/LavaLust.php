@@ -176,6 +176,12 @@ $io = load_class('io', 'kernel');
 /**
  * Instantiate the Request class
  */
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && empty($_POST)) {
+    $json_input = json_decode(file_get_contents('php://input'), true);
+    if (is_array($json_input)) {
+        $_POST = $json_input;
+    }
+}
 $request = load_class('request', 'kernel');
 
 /**
