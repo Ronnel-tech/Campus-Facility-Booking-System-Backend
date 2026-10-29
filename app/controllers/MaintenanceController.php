@@ -1,9 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\MaintenanceRecord;
-use App\Models\Asset;
 
 class MaintenanceController extends \Controller
 {

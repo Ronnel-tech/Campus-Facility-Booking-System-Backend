@@ -161,10 +161,11 @@ class Request
     {
         if ($index === NULL)
         {
-            return !empty($_POST) ? $_POST : array();
+            return !empty($_POST) ? $_POST : $this->get_raw_input();
         }
 
-        return isset($_POST[$index]) ? $_POST[$index] : $default;
+        $data = !empty($_POST) ? $_POST : $this->get_raw_input();
+        return isset($data[$index]) ? $data[$index] : $default;
     }
 
     /**
@@ -178,10 +179,11 @@ class Request
     {
         if ($index === NULL)
         {
-            return !empty($_GET) ? $_GET : array();
+            return !empty($_GET) ? $_GET : $this->get_raw_input();
         }
 
-        return isset($_GET[$index]) ? $_GET[$index] : $default;
+        $data = !empty($_GET) ? $_GET : $this->get_raw_input();
+        return isset($data[$index]) ? $data[$index] : $default;
     }
 
     /**

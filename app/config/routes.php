@@ -77,36 +77,36 @@ $router->post('api/auth/refresh', 'AuthController::refreshToken');
 
 // Public Facilities Routes
 $router->get('api/facilities', 'FacilitiesController::index');
-$router->get('api/facilities/:id', 'FacilitiesController::show');
-$router->get('api/facilities/:id/availability', 'FacilitiesController::getAvailability');
+$router->get('api/facilities/{id}', 'FacilitiesController::show');
+$router->get('api/facilities/{id}/availability', 'FacilitiesController::getAvailability');
 $router->get('api/facilities/categories', 'FacilitiesController::categories');
 
 // Admin Facilities Management
 $router->post('api/admin/facilities', 'FacilitiesController::store');
-$router->put('api/admin/facilities/:id', 'FacilitiesController::update');
-$router->delete('api/admin/facilities/:id', 'FacilitiesController::delete');
+$router->put('api/admin/facilities/{id}', 'FacilitiesController::update');
+$router->delete('api/admin/facilities/{id}', 'FacilitiesController::delete');
 
 // Public Assets Routes
 $router->get('api/assets', 'AssetsController::index');
-$router->get('api/assets/:id', 'AssetsController::show');
+$router->get('api/assets/{id}', 'AssetsController::show');
 $router->get('api/assets/categories', 'AssetsController::categories');
 
 // Admin Assets Management
 $router->post('api/admin/assets', 'AssetsController::store');
-$router->put('api/admin/assets/:id', 'AssetsController::update');
-$router->delete('api/admin/assets/:id', 'AssetsController::delete');
+$router->put('api/admin/assets/{id}', 'AssetsController::update');
+$router->delete('api/admin/assets/{id}', 'AssetsController::delete');
 $router->get('api/admin/assets/inventory', 'AssetsController::inventory');
 
 // User Reservations Routes
 $router->get('api/reservations', 'ReservationsController::index');
-$router->get('api/reservations/:id', 'ReservationsController::show');
+$router->get('api/reservations/{id}', 'ReservationsController::show');
 $router->post('api/reservations', 'ReservationsController::store');
-$router->post('api/reservations/:id/cancel', 'ReservationsController::cancel');
+$router->post('api/reservations/{id}/cancel', 'ReservationsController::cancel');
 
 // Admin Reservations Management
 $router->get('api/admin/reservations', 'ReservationsController::allReservations');
-$router->post('api/admin/reservations/:id/approve', 'ReservationsController::approve');
-$router->post('api/admin/reservations/:id/reject', 'ReservationsController::reject');
+$router->post('api/admin/reservations/{id}/approve', 'ReservationsController::approve');
+$router->post('api/admin/reservations/{id}/reject', 'ReservationsController::reject');
 
 // User Profile Routes
 $router->get('api/users/profile', 'UsersController::getProfile');
@@ -119,26 +119,27 @@ $router->put('api/users/notification-preferences', 'UsersController::updateNotif
 
 // User Notifications Routes
 $router->get('api/notifications', 'NotificationsController::index');
-$router->post('api/notifications/:id/read', 'NotificationsController::markAsRead');
+$router->post('api/notifications/{id}/read', 'NotificationsController::markAsRead');
 $router->post('api/notifications/read-all', 'NotificationsController::markAllAsRead');
-$router->delete('api/notifications/:id', 'NotificationsController::delete');
+$router->delete('api/notifications/{id}', 'NotificationsController::delete');
 $router->get('api/notifications/unread-count', 'NotificationsController::getUnreadCount');
 
 // Admin Dashboard
 $router->get('api/admin/dashboard', 'AdminController::dashboard');
+$router->get('api/admin/reports/recent-activity', 'AdminController::recentActivity');
 
 // Admin User Management
 $router->get('api/admin/users', 'AdminController::getUsers');
 $router->post('api/admin/users', 'AdminController::createUser');
-$router->post('api/admin/users/:id/suspend', 'AdminController::suspendUser');
-$router->post('api/admin/users/:id/unsuspend', 'AdminController::unsuspendUser');
+$router->post('api/admin/users/{id}/suspend', 'AdminController::suspendUser');
+$router->post('api/admin/users/{id}/unsuspend', 'AdminController::unsuspendUser');
 
 // Maintenance Records
 $router->get('api/admin/maintenance', 'MaintenanceController::index');
-$router->get('api/admin/maintenance/:id', 'MaintenanceController::show');
+$router->get('api/admin/maintenance/{id}', 'MaintenanceController::show');
 $router->post('api/admin/maintenance', 'MaintenanceController::store');
-$router->put('api/admin/maintenance/:id', 'MaintenanceController::update');
-$router->delete('api/admin/maintenance/:id', 'MaintenanceController::delete');
+$router->put('api/admin/maintenance/{id}', 'MaintenanceController::update');
+$router->delete('api/admin/maintenance/{id}', 'MaintenanceController::delete');
 
 // Reports Routes
 $router->get('api/admin/reports/facility-usage', 'ReportsController::facilityUsage');

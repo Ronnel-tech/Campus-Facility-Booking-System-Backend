@@ -1,9 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\User;
-use App\Models\UserProfile;
 
 class AuthController extends \Controller
 {

@@ -128,8 +128,17 @@ class Controller
 	 */
 	public function authorize($role)
 	{
-		// Placeholder for RBAC. Real implementation should check authenticated user's role.
-		// For now, we just log it.
+		$user = function_exists('auth') ? auth()->user() : null;
+		if (!$user || (($user['role'] ?? null) !== $role)) {
+			$response = load_class('Response', 'kernel');
+			$response->set_status_code(403);
+			$response->set_json_content([
+				'status' => 'error',
+				'message' => 'Forbidden',
+			]);
+			$response->send();
+			exit;
+		}
 	}
 
 	/**

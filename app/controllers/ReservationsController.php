@@ -1,11 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\Reservation;
-use App\Models\ReservationAsset;
-use App\Models\Asset;
-use App\Models\Facility;
 
 class ReservationsController extends \Controller
 {

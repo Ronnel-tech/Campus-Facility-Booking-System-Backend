@@ -16,7 +16,7 @@ if (in_array($origin, $allowed_origins)) {
     header('Access-Control-Allow-Credentials: true');
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') == 'OPTIONS') {
     http_response_code(200);
     exit();
 }

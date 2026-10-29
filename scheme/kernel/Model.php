@@ -80,7 +80,126 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  * @method static void         commit()
  * @method static void         rollback()
 */
-class Model {  
+class ModelEntity implements ArrayAccess, JsonSerializable
+{
+    private $model;
+    private $attributes;
+
+    public function __construct(Model $model, array $attributes)
+    {
+        $this->model = $model;
+        $this->attributes = $attributes;
+    }
+
+    public function __get($name)
+    {
+        if (array_key_exists($name, $this->attributes)) return $this->attributes[$name];
+        if (method_exists($this->model, $name)) return $this->model->{$name}();
+        return null;
+    }
+
+    public function __set($name, $value) { $this->attributes[$name] = $value; }
+    public function setAttribute($name, $value) { $this->attributes[$name] = $value; return $this; }
+
+    public function __call($method, $args)
+    {
+        if (method_exists($this->model, $method)) {
+            $relation = $this->model->{$method}(...$args);
+            if (is_array($relation) && isset($relation['related'], $relation['type'])) {
+                $related = new $relation['related']();
+                $query = new ModelQuery($related);
+                if ($relation['type'] === 'belongs_to') {
+                    return $query->where($related->model_primary_key(), $this->attributes[$relation['foreign_key']] ?? null);
+                }
+                return $query->where($relation['foreign_key'], $this->attributes[$this->model->model_primary_key()]);
+            }
+        }
+        throw new BadMethodCallException("Method {$method}() does not exist.");
+    }
+
+    public function update(array $data)
+    {
+        $this->model->_update($this->attributes[$this->model->model_primary_key()], $data);
+        $this->attributes = array_merge($this->attributes, $data);
+        return true;
+    }
+
+    public function delete() { return $this->model->_delete($this->attributes[$this->model->model_primary_key()]); }
+    public function offsetExists($offset): bool { return isset($this->attributes[$offset]); }
+    public function offsetGet($offset): mixed { return $this->attributes[$offset] ?? null; }
+    public function offsetSet($offset, $value): void { $this->attributes[$offset] = $value; }
+    public function offsetUnset($offset): void { unset($this->attributes[$offset]); }
+    public function jsonSerialize(): array { return $this->attributes; }
+    public function toArray(): array { return $this->attributes; }
+}
+
+class ModelQuery
+{
+    private $model;
+    private $conditions = [];
+    private $or_conditions = [];
+    private $limit;
+    private $offset;
+    private $order;
+    private $with = [];
+
+    public function __construct(Model $model) { $this->model = $model; }
+    public function where($column, $operator = null, $value = null)
+    {
+        if (is_array($column)) foreach ($column as $key => $val) $this->conditions[] = [$key, '=', $val];
+        elseif ($value === null) $this->conditions[] = [$column, '=', $operator];
+        else $this->conditions[] = [$column, strtoupper($operator), $value];
+        return $this;
+    }
+    public function orWhere($column, $operator = null, $value = null)
+    {
+        $this->or_conditions[] = [$column, $value === null ? '=' : strtoupper($operator), $value === null ? $operator : $value];
+        return $this;
+    }
+    public function whereBetween($column, array $values)
+    {
+        $this->conditions[] = [$column, '>=', $values[0]];
+        $this->conditions[] = [$column, '<=', $values[1]];
+        return $this;
+    }
+    public function limit($limit) { $this->limit = max(0, (int) $limit); return $this; }
+    public function offset($offset) { $this->offset = max(0, (int) $offset); return $this; }
+    public function orderBy($column, $direction = 'ASC') { $this->order = [$column, $direction]; return $this; }
+    public function with($relations) { $this->with = (array) $relations; return $this; }
+    private function builder()
+    {
+        $db = $this->model->_query();
+        foreach ($this->conditions as $condition) $db->where($condition[0], $condition[1], $condition[2]);
+        foreach ($this->or_conditions as $condition) $db->or_where($condition[0], $condition[1], $condition[2]);
+        if ($this->order) $db->order_by($this->order[0], $this->order[1]);
+        if ($this->limit !== null) $db->limit($this->limit, $this->offset);
+        return $db;
+    }
+    public function get()
+    {
+        $rows = $this->builder()->get_all() ?: [];
+        $entities = array_map(function ($row) { return new ModelEntity($this->model, $row); }, $rows);
+        foreach ($entities as $entity) {
+            foreach ($this->with as $relation) {
+                if (method_exists($this->model, $relation)) {
+                    $entity->setAttribute($relation, $entity->{$relation}()->get());
+                }
+            }
+        }
+        return $entities;
+    }
+    public function first() { $rows = $this->limit(1)->get(); return $rows[0] ?? null; }
+    public function find($id) { return $this->where($this->model->model_primary_key(), $id)->first(); }
+    public function findOrFail($id)
+    {
+        $record = $this->find($id);
+        if (!$record) throw new RuntimeException('Record not found', 404);
+        return $record;
+    }
+    public function count() { return (int) $this->builder()->count(); }
+}
+
+class Model {
     /**
      * Table Name of the Database
      *
@@ -150,6 +269,11 @@ class Model {
      * @var array
      */
     protected $with = [];
+
+    public function model_primary_key()
+    {
+        return $this->primary_key;
+    }
 
       /**
      * Class Constructor
@@ -869,6 +993,11 @@ class Model {
         return ['type' => 'has_many', 'related' => $related, 'foreign_key' => $foreign_key];
     }
 
+    public function hasMany($related, $foreign_key, $local_key = null)
+    {
+        return $this->has_many($related, $foreign_key);
+    }
+
     /**
      * ORM Has One Relationship
      *
@@ -879,6 +1008,11 @@ class Model {
     protected function has_one($related, $foreign_key)
     {
         return ['type' => 'has_one', 'related' => $related, 'foreign_key' => $foreign_key];
+    }
+
+    public function hasOne($related, $foreign_key, $local_key = null)
+    {
+        return $this->has_one($related, $foreign_key);
     }
 
     /**
@@ -912,6 +1046,11 @@ class Model {
     protected function belongs_to($related, $foreign_key)
     {
         return ['type' => 'belongs_to', 'related' => $related, 'foreign_key' => $foreign_key];
+    }
+
+    public function belongsTo($related, $foreign_key, $owner_key = null)
+    {
+        return $this->belongs_to($related, $foreign_key);
     }
     
     /**
@@ -999,6 +1138,18 @@ class Model {
             $instance = new static();
             lava_instance()->$model_name = $instance;
         }
+
+        if ($method === 'where') return (new ModelQuery($instance))->where(...$args);
+        if ($method === 'with') return (new ModelQuery($instance))->with(...$args);
+        if ($method === 'create') {
+            $id = $instance->_insert($args[0] ?? []);
+            return $id ? new ModelEntity($instance, $instance->_find($id)) : null;
+        }
+        if ($method === 'find') {
+            $record = $instance->_find(...$args);
+            return $record ? new ModelEntity($instance, $record) : null;
+        }
+        if ($method === 'findOrFail') return (new ModelQuery($instance))->findOrFail(...$args);
 
         $internal = '_' . $method;
         if (!method_exists($instance, $internal)) {

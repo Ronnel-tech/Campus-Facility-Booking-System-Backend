@@ -1,8 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\Notification;
 
 class NotificationsController extends \Controller
 {

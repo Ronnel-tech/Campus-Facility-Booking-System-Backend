@@ -1,10 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\User;
-use App\Models\UserProfile;
-use App\Models\NotificationPreference;
 
 class UsersController extends \Controller
 {

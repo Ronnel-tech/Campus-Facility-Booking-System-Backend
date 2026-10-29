@@ -1,15 +1,31 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\User;
-use App\Models\UserProfile;
-use App\Models\Reservation;
-use App\Models\Asset;
-use App\Models\Facility;
 
 class AdminController extends \Controller
 {
+    public function recentActivity()
+    {
+        $this->authorize('admin');
+
+        try {
+            $limit = min(50, max(1, (int) request()->get('limit', 10)));
+            $activity = Reservation::with(['user', 'facility'])
+                ->orderBy('created_at', 'DESC')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $activity,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch recent activity',
+            ], 400);
+        }
+    }
+
     public function dashboard()
     {
         $this->authorize('admin');

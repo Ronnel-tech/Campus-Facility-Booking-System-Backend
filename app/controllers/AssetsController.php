@@ -1,9 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\Asset;
-use App\Models\AssetCategory;
 
 class AssetsController extends \Controller
 {

@@ -1,12 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\Facility;
-use App\Models\Asset;
-use App\Models\Reservation;
-use App\Models\AssetBorrowing;
-use App\Models\MaintenanceRecord;
 
 class ReportsController extends \Controller
 {

@@ -1,8 +1,5 @@
 <?php
 
-namespace App\Models;
-
-use Lava\Database\Orm\Model;
 
 class Facility extends Model
 {

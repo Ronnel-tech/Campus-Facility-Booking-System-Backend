@@ -1,9 +1,5 @@
 <?php
 
-namespace App\Controllers;
-
-use App\Models\Facility;
-use App\Models\FacilityCategory;
 
 class FacilitiesController extends \Controller
 {
