@@ -43,7 +43,7 @@ class Create_users_table {
                 ],
                 'role' => [
                     'type'       => 'ENUM',
-                    'constraint' => "'admin','moderator','user'",
+                    'constraint' => "'student','faculty','staff','admin'",
                     'null'       => FALSE,
                     'default'    => 'user',
                 ],

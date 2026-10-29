@@ -76,7 +76,7 @@ if (!function_exists('auth')) {
                 $payload = json_decode(base64_decode($parts[0]), true);
                 if (!is_array($payload) || empty($payload['sub'])) return null;
 
-                return User::_find($payload['sub']);
+                return User::find($payload['sub']);
             }
         };
 

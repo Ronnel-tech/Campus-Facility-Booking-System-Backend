@@ -1132,11 +1132,12 @@ class Model {
     public static function __callStatic($method, $args)
     {
         $model_name = (new \ReflectionClass(static::class))->getShortName();
-        $instance = lava_instance()->$model_name;
+        $registry = Registry::instance();
+        $instance = $registry->get_object($model_name);
 
-        if ($instance === null) {
+        if (!$instance) {
             $instance = new static();
-            lava_instance()->$model_name = $instance;
+            $registry->store_object($model_name, $instance);
         }
 
         if ($method === 'where') return (new ModelQuery($instance))->where(...$args);
@@ -1151,7 +1152,7 @@ class Model {
         }
         if ($method === 'findOrFail') return (new ModelQuery($instance))->findOrFail(...$args);
 
-        $internal = '_' . $method;
+        $internal = strpos($method, '_') === 0 ? $method : '_' . $method;
         if (!method_exists($instance, $internal)) {
             throw new \BadMethodCallException(
                 "{$model_name}::{$method}() does not exist."

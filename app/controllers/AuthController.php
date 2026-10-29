@@ -5,6 +5,7 @@ class AuthController extends \Controller
 {
     public function register()
     {
+        $this->populate_json_input();
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
         $fv->name('username')->required()->min_length(3);
@@ -24,7 +25,7 @@ class AuthController extends \Controller
         $password = $this->request->post('password');
         $role = $this->request->post('role');
 
-        $existing = User::_find_by('email', $email);
+        $existing = User::find_by('email', $email);
         if ($existing) {
             return $this->response_json([
                 'status' => 'error',
@@ -32,7 +33,7 @@ class AuthController extends \Controller
             ], 400);
         }
 
-        $existingUser = User::_find_by('username', $username);
+        $existingUser = User::find_by('username', $username);
         if ($existingUser) {
             return $this->response_json([
                 'status' => 'error',
@@ -41,7 +42,7 @@ class AuthController extends \Controller
         }
 
         try {
-            $userId = User::_insert([
+            $userId = User::insert([
                 'email' => $email,
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
@@ -49,13 +50,13 @@ class AuthController extends \Controller
                 'is_active' => 1,
             ]);
 
-            UserProfile::_insert([
+            UserProfile::insert([
                 'user_id' => $userId,
                 'violations_count' => 0,
                 'is_suspended' => 0,
             ]);
 
-            $user = User::_find($userId);
+            $user = User::find($userId);
 
             return $this->response_json([
                 'status' => 'success',
@@ -73,6 +74,7 @@ class AuthController extends \Controller
 
     public function login()
     {
+        $this->populate_json_input();
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
         $fv->name('password')->required();
@@ -88,7 +90,7 @@ class AuthController extends \Controller
         $email = $this->request->post('email');
         $password = $this->request->post('password');
 
-        $user = User::_find_by('email', $email);
+        $user = User::find_by('email', $email);
 
         if (!$user || !password_verify($password, $user['password'])) {
             return $this->response_json([
@@ -180,7 +182,7 @@ class AuthController extends \Controller
             $payload = json_decode(base64_decode($parts[0]), true);
             if (!$payload || !isset($payload['sub'])) return null;
 
-            return User::_find($payload['sub']);
+            return User::find($payload['sub']);
         }
         return null;
     }
@@ -192,5 +194,15 @@ class AuthController extends \Controller
         $response->set_json_content($data);
         $response->send();
         exit;
+    }
+
+    private function populate_json_input()
+    {
+        if (empty($_POST) && stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
+            $input = $this->request->json(true);
+            if (is_array($input)) {
+                $_POST = $input;
+            }
+        }
     }
 }

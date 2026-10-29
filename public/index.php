@@ -1,5 +1,15 @@
 <?php
 define('PREVENT_DIRECT_ACCESS', TRUE);
+
+if (empty($_POST)) {
+    $raw_input = file_get_contents('php://input');
+    if ($raw_input !== false && trim($raw_input) !== '') {
+        $json_input = json_decode($raw_input, true);
+        if (is_array($json_input)) {
+            $_POST = $json_input;
+        }
+    }
+}
 /**
  * ------------------------------------------------------------------
  * LavaLust - an opensource lightweight PHP MVC Framework
