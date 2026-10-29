@@ -70,7 +70,7 @@ class Request
     {
         if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false && empty($_POST))
         {
-            $json = json_decode(file_get_contents('php://input'), true);
+            $json = json_decode(lavalust_raw_input(), true);
             if (is_array($json)) {
                 $_POST = $json;
             }
@@ -108,7 +108,7 @@ class Request
     {
         if ($this->raw_input === NULL)
         {
-            $input = file_get_contents('php://input');
+            $input = lavalust_raw_input();
 
             $content_type = $this->server('CONTENT_TYPE');
             if ($content_type && strpos($content_type, 'application/json') !== FALSE)
@@ -133,7 +133,7 @@ class Request
      */
     public function raw_body()
     {
-        return (string) file_get_contents('php://input');
+        return (string) lavalust_raw_input();
     }
 
     /**

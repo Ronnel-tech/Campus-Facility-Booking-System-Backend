@@ -3,8 +3,24 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 require_once SYSTEM_DIR . 'kernel/Model.php';
 
+if (!function_exists('lavalust_raw_input')) {
+    function lavalust_raw_input()
+    {
+        static $loaded = false;
+        static $body = '';
+
+        if (!$loaded) {
+            $input = file_get_contents('php://input');
+            $body = $input === false ? '' : $input;
+            $loaded = true;
+        }
+
+        return $body;
+    }
+}
+
 if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false && empty($_POST)) {
-    $json = json_decode(file_get_contents('php://input'), true);
+    $json = json_decode(lavalust_raw_input(), true);
     if (is_array($json)) $_POST = $json;
 }
 

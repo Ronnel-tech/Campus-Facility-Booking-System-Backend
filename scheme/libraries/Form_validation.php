@@ -244,7 +244,7 @@ class Form_validation {
     {
         $this->LAVA = lava_instance();
         if (empty($_POST) && stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
-            $json = json_decode(file_get_contents('php://input'), true);
+            $json = json_decode(lavalust_raw_input(), true);
             if (is_array($json)) {
                 $_POST = $json;
             }

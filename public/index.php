@@ -1,13 +1,19 @@
 <?php
 define('PREVENT_DIRECT_ACCESS', TRUE);
 
-if (empty($_POST)) {
-    $raw_input = file_get_contents('php://input');
-    if ($raw_input !== false && trim($raw_input) !== '') {
-        $json_input = json_decode($raw_input, true);
-        if (is_array($json_input)) {
-            $_POST = $json_input;
+if (!function_exists('lavalust_raw_input')) {
+    function lavalust_raw_input()
+    {
+        static $loaded = false;
+        static $body = '';
+
+        if (!$loaded) {
+            $input = file_get_contents('php://input');
+            $body = $input === false ? '' : $input;
+            $loaded = true;
         }
+
+        return $body;
     }
 }
 /**

@@ -199,7 +199,7 @@ class AuthController extends \Controller
     private function populate_json_input()
     {
         if (empty($_POST) && stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
-            $input = $this->request->json(true);
+            $input = json_decode(lavalust_raw_input(), true);
             if (is_array($input)) {
                 $_POST = $input;
             }
