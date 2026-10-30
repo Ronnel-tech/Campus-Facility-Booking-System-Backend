@@ -41,13 +41,6 @@ class AdminController extends \Controller
                                         ->limit(10)
                                         ->get();
 
-            $facilityUsage = Facility::selectRaw('name, COUNT(reservations.id) as booking_count')
-                                    ->leftJoin('reservations', 'facilities.id', '=', 'reservations.facility_id')
-                                    ->groupBy('facilities.id', 'facilities.name')
-                                    ->orderBy('booking_count', 'DESC')
-                                    ->limit(5)
-                                    ->get();
-
             return response()->json([
                 'status' => 'success',
                 'data' => [
@@ -58,7 +51,7 @@ class AdminController extends \Controller
                         'active_reservations' => $activeReservations,
                     ],
                     'recent_activity' => $recentActivity,
-                    'facility_usage' => $facilityUsage,
+                    'facility_usage' => [],
                 ],
             ], 200);
         } catch (\Exception $e) {
