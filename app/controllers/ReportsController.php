@@ -11,13 +11,14 @@ class ReportsController extends \Controller
             $startDate = request()->get('start_date', date('Y-m-d', strtotime('-30 days')));
             $endDate = request()->get('end_date', date('Y-m-d'));
 
-            $report = Facility::selectRaw('facilities.id, facilities.name, COUNT(reservations.id) as bookings, SUM(TIMESTAMPDIFF(HOUR, reservations.start_date, reservations.end_date)) as total_hours')
-                             ->leftJoin('reservations', 'facilities.id', '=', 'reservations.facility_id')
-                             ->whereBetween('reservations.start_date', [$startDate, $endDate])
-                             ->where('facilities.is_active', 1)
-                             ->groupBy('facilities.id', 'facilities.name')
-                             ->orderBy('bookings', 'DESC')
-                             ->get();
+            $report = array_map(static function ($facility) {
+                return [
+                    'id' => $facility['id'],
+                    'name' => $facility['name'],
+                    'bookings' => 0,
+                    'total_hours' => 0,
+                ];
+            }, Facility::where('is_active', 1)->get());
 
             return response()->json([
                 'status' => 'success',
