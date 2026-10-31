@@ -141,6 +141,21 @@ class Controller
 		}
 	}
 
+	public function authorizeAnyRole(array $roles)
+	{
+		$user = function_exists('auth') ? auth()->user() : null;
+		if (!$user || !in_array($user['role'] ?? null, $roles, true)) {
+			$response = load_class('Response', 'kernel');
+			$response->set_status_code(403);
+			$response->set_json_content([
+				'status' => 'error',
+				'message' => 'Forbidden',
+			]);
+			$response->send();
+			exit;
+		}
+	}
+
 	/**
 	 * Laravel-style compatibility: validate()
 	 * 

@@ -46,10 +46,19 @@ class ReservationsController extends \Controller
     public function show($id)
     {
         try {
+            $user = auth()->user();
             $reservation = Reservation::with(['facility', 'assets', 'user'])
                                      ->findOrFail($id);
 
-            $this->authorize('view', $reservation);
+            if (
+                !in_array($user['role'] ?? null, ['admin', 'faculty', 'staff'], true)
+                && (int) $reservation->user_id !== (int) $user['id']
+            ) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Reservation not found',
+                ], 404);
+            }
 
             return response()->json([
                 'status' => 'success',
@@ -65,6 +74,8 @@ class ReservationsController extends \Controller
 
     public function store()
     {
+        $this->authorizeAnyRole(['faculty', 'staff']);
+
         $this->validate([
             'reservation_type' => 'required|in:facility,asset,combined',
             'facility_id' => 'required_if:reservation_type,facility,combined',

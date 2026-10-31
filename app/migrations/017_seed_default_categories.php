@@ -60,6 +60,7 @@ class Seed_default_categories
     public function down()
     {
         $this->_lava->db->raw(
+            
             "DELETE FROM facility_categories
              WHERE name IN ('Classroom', 'Laboratory', 'Meeting Room')"
         );
