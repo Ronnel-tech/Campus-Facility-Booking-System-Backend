@@ -77,9 +77,9 @@ $router->post('api/auth/refresh', 'AuthController::refreshToken');
 
 // Public Facilities Routes
 $router->get('api/facilities', 'FacilitiesController::index');
-$router->get('api/facilities/{id}', 'FacilitiesController::show');
-$router->get('api/facilities/{id}/availability', 'FacilitiesController::getAvailability');
 $router->get('api/facilities/categories', 'FacilitiesController::categories');
+$router->get('api/facilities/{id}/availability', 'FacilitiesController::getAvailability');
+$router->get('api/facilities/{id}', 'FacilitiesController::show');
 
 // Admin Facilities Management
 $router->post('api/admin/facilities', 'FacilitiesController::store');
@@ -88,8 +88,8 @@ $router->delete('api/admin/facilities/{id}', 'FacilitiesController::delete');
 
 // Public Assets Routes
 $router->get('api/assets', 'AssetsController::index');
-$router->get('api/assets/{id}', 'AssetsController::show');
 $router->get('api/assets/categories', 'AssetsController::categories');
+$router->get('api/assets/{id}', 'AssetsController::show');
 
 // Admin Assets Management
 $router->post('api/admin/assets', 'AssetsController::store');
