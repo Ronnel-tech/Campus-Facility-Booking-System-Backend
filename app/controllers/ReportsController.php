@@ -92,16 +92,19 @@ class ReportsController extends \Controller
         try {
             $startDate = request()->get('start_date', date('Y-m-d', strtotime('-30 days')));
             $endDate = request()->get('end_date', date('Y-m-d'));
+            $endDateExclusive = date('Y-m-d', strtotime($endDate . ' +1 day'));
 
             $stats = [
-                'approved' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'approved')->count(),
-                'pending' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'pending')->count(),
-                'rejected' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'rejected')->count(),
-                'cancelled' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'cancelled')->count(),
+                'approved' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<', $endDateExclusive)->where('status', 'approved')->count(),
+                'pending' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<', $endDateExclusive)->where('status', 'pending')->count(),
+                'rejected' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<', $endDateExclusive)->where('status', 'rejected')->count(),
+                'cancelled' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<', $endDateExclusive)->where('status', 'cancelled')->count(),
+                'completed' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<', $endDateExclusive)->where('status', 'completed')->count(),
             ];
 
             $totalRequests = array_sum($stats);
-            $approvalRate = $totalRequests > 0 ? round(($stats['approved'] / $totalRequests) * 100, 2) : 0;
+            $decisionCount = $stats['approved'] + $stats['rejected'];
+            $approvalRate = $decisionCount > 0 ? round(($stats['approved'] / $decisionCount) * 100, 2) : 0;
 
             return response()->json([
                 'status' => 'success',
