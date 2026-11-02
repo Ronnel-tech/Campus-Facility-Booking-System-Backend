@@ -13,7 +13,8 @@ class ReportsController extends \Controller
 
             $report = array_map(static function ($facility) use ($startDate, $endDate) {
                 $reservations = Reservation::where('facility_id', $facility['id'])
-                    ->whereBetween('start_date', [$startDate, $endDate])
+                    ->where('start_date', '>=', $startDate)
+                    ->where('start_date', '<=', $endDate)
                     ->where('status', 'approved')
                     ->get();
                 $totalHours = 0;
@@ -58,7 +59,8 @@ class ReportsController extends \Controller
             $report = [];
             foreach (Asset::where('is_active', 1)->get() as $asset) {
                 $borrowings = AssetBorrowing::where('asset_id', $asset['id'])
-                    ->whereBetween('checkout_date', [$startDate, $endDate])
+                    ->where('checkout_date', '>=', $startDate)
+                    ->where('checkout_date', '<=', $endDate)
                     ->get();
                 $report[] = [
                     'id' => $asset['id'],
@@ -166,15 +168,24 @@ class ReportsController extends \Controller
             $endDate = request()->get('end_date', date('Y-m-d'));
 
             $maintenance = MaintenanceRecord::with(['asset', 'reported_by', 'assigned_to'])
-                                           ->whereBetween('created_at', [$startDate, $endDate])
+                                           ->where('created_at', '>=', $startDate)
+                                           ->where('created_at', '<=', $endDate)
                                            ->orderBy('created_at', 'DESC')
                                            ->get();
+
+            $maintenanceInRange = MaintenanceRecord::where('created_at', '>=', $startDate)
+                ->where('created_at', '<=', $endDate)
+                ->get();
+            $totalCost = 0;
+            foreach ($maintenanceInRange as $record) {
+                $totalCost += (float) ($record['cost'] ?? 0);
+            }
 
             $stats = [
                 'pending' => MaintenanceRecord::where('status', 'pending')->count(),
                 'in_progress' => MaintenanceRecord::where('status', 'in-progress')->count(),
                 'completed' => MaintenanceRecord::where('completion_date', '>=', $startDate)->where('completion_date', '<=', $endDate)->where('status', 'completed')->count(),
-                'total_cost' => MaintenanceRecord::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->sum('cost'),
+                'total_cost' => round($totalCost, 2),
             ];
 
             return response()->json([
