@@ -179,11 +179,28 @@ class ReservationsController extends \Controller
             }
 
             $total = $query->count();
-            $reservations = $query->with(['user', 'facility', 'assets'])
-                                 ->orderBy('created_at', 'DESC')
+            $reservations = $query->orderBy('created_at', 'DESC')
                                  ->limit($limit)
                                  ->offset(($page - 1) * $limit)
                                  ->get();
+            $reservations = array_map(static function ($reservation) {
+                $user = User::find($reservation['user_id']);
+                $facility = $reservation['facility_id']
+                    ? Facility::find($reservation['facility_id'])
+                    : null;
+
+                $reservation['user'] = $user ? [
+                    'id' => $user['id'],
+                    'username' => $user['username'],
+                    'email' => $user['email'],
+                ] : null;
+                $reservation['facility'] = $facility ? [
+                    'id' => $facility['id'],
+                    'name' => $facility['name'],
+                ] : null;
+
+                return $reservation;
+            }, $reservations);
 
             return response()->json([
                 'status' => 'success',
@@ -199,6 +216,7 @@ class ReservationsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch reservations',
+                'error' => $e->getMessage(),
             ], 400);
         }
     }
