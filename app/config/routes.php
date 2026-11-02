@@ -110,10 +110,6 @@ $router->get('api/admin/dashboard', 'AdminController::dashboard');
 $router->get('api/admin/reports/recent-activity', 'AdminController::recentActivity');
 
 // Admin User Management
-$router->get('api/admin/users', 'AdminController::getUsers');
-$router->post('api/admin/users', 'AdminController::createUser');
-$router->post('api/admin/users/{id}/suspend', 'AdminController::suspendUser');
-$router->post('api/admin/users/{id}/unsuspend', 'AdminController::unsuspendUser');
 
 // Maintenance Records
 $router->get('api/admin/maintenance', 'MaintenanceController::index');
