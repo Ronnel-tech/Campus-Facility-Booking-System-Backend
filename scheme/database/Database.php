@@ -623,7 +623,13 @@ class Database {
             $x++;
         }
 
-        $this->sql = "INSERT INTO {$this->table} ({$keys}) VALUES ({$values})";
+        $quoted_keys = implode(', ', array_map(
+            static function ($key) {
+                return '`' . str_replace('`', '``', $key) . '`';
+            },
+            array_keys($fields)
+        ));
+        $this->sql = "INSERT INTO {$this->table} ({$quoted_keys}) VALUES ({$values})";
 
         return $this->exec();
     }
