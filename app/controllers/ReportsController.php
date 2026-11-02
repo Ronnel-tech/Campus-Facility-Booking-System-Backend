@@ -92,10 +92,10 @@ class ReportsController extends \Controller
             $endDate = request()->get('end_date', date('Y-m-d'));
 
             $stats = [
-                'approved' => Reservation::whereBetween('created_at', [$startDate, $endDate])->where('status', 'approved')->count(),
-                'pending' => Reservation::whereBetween('created_at', [$startDate, $endDate])->where('status', 'pending')->count(),
-                'rejected' => Reservation::whereBetween('created_at', [$startDate, $endDate])->where('status', 'rejected')->count(),
-                'cancelled' => Reservation::whereBetween('created_at', [$startDate, $endDate])->where('status', 'cancelled')->count(),
+                'approved' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'approved')->count(),
+                'pending' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'pending')->count(),
+                'rejected' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'rejected')->count(),
+                'cancelled' => Reservation::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->where('status', 'cancelled')->count(),
             ];
 
             $totalRequests = array_sum($stats);
@@ -173,8 +173,8 @@ class ReportsController extends \Controller
             $stats = [
                 'pending' => MaintenanceRecord::where('status', 'pending')->count(),
                 'in_progress' => MaintenanceRecord::where('status', 'in-progress')->count(),
-                'completed' => MaintenanceRecord::whereBetween('completion_date', [$startDate, $endDate])->where('status', 'completed')->count(),
-                'total_cost' => MaintenanceRecord::whereBetween('created_at', [$startDate, $endDate])->sum('cost'),
+                'completed' => MaintenanceRecord::where('completion_date', '>=', $startDate)->where('completion_date', '<=', $endDate)->where('status', 'completed')->count(),
+                'total_cost' => MaintenanceRecord::where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate)->sum('cost'),
             ];
 
             return response()->json([
@@ -203,7 +203,8 @@ class ReportsController extends \Controller
             $endDate = request()->get('end_date', date('Y-m-d'));
 
             $counts = [];
-            foreach (Reservation::whereBetween('updated_at', [$startDate, $endDate])
+            foreach (Reservation::where('updated_at', '>=', $startDate)
+                ->where('updated_at', '<=', $endDate)
                 ->where('status', 'cancelled')
                 ->get() as $reservation) {
                 $user = User::find($reservation['user_id']);
