@@ -98,6 +98,13 @@ class AssetsController extends \Controller
                 'is_active' => 1,
             ]);
 
+            if (!$asset) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Asset could not be saved',
+                ], 400);
+            }
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Asset created successfully',
