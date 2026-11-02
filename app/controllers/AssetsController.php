@@ -82,13 +82,33 @@ class AssetsController extends \Controller
                 'quantity' => 'required|integer|min:1',
             ]);
 
+            $assetTag = trim((string) request()->get('asset_tag'));
+            $categoryId = request()->get('category_id');
+            $quantity = (int) request()->get('quantity', 1);
+
+            if (Asset::where('asset_tag', $assetTag)->first()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'An asset with this asset tag already exists.',
+                    'errors' => ['asset_tag' => 'Asset tag must be unique.'],
+                ], 409);
+            }
+
+            if (!AssetCategory::find($categoryId)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'The selected asset category is invalid.',
+                    'errors' => ['category_id' => 'Select an existing asset category.'],
+                ], 422);
+            }
+
             $asset = Asset::create([
-                'asset_tag' => request()->get('asset_tag'),
+                'asset_tag' => $assetTag,
                 'name' => request()->get('name'),
-                'category_id' => request()->get('category_id'),
+                'category_id' => $categoryId,
                 'description' => request()->get('description'),
-                'quantity' => request()->get('quantity', 1),
-                'quantity_available' => request()->get('quantity', 1),
+                'quantity' => $quantity,
+                'quantity_available' => $quantity,
                 'condition' => request()->get('condition', 'good'),
                 'status' => 'available',
                 'current_location' => request()->get('current_location'),
