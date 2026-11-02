@@ -98,6 +98,20 @@ class AdminController extends \Controller
 
             $total = count($users);
             $users = array_slice($users, ($page - 1) * $limit, $limit);
+            $users = array_map(static function ($user) {
+                $profile = UserProfile::where('user_id', $user['id'])->first();
+
+                return [
+                    'id' => $user['id'],
+                    'username' => $user['username'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'is_active' => (int) $user['is_active'],
+                    'status' => (int) $user['is_active'] === 1 ? 'active' : 'inactive',
+                    'created_at' => $user['created_at'],
+                    'violations_count' => $profile ? (int) ($profile['violations_count'] ?? 0) : 0,
+                ];
+            }, $users);
 
             return response()->json([
                 'status' => 'success',
@@ -207,7 +221,14 @@ class AdminController extends \Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'User created successfully',
-                'data' => $user,
+                'data' => [
+                    'id' => $user['id'],
+                    'username' => $user['username'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'is_active' => (int) $user['is_active'],
+                    'created_at' => $user['created_at'],
+                ],
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
