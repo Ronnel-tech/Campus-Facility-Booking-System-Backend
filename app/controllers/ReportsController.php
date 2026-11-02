@@ -11,12 +11,25 @@ class ReportsController extends \Controller
             $startDate = request()->get('start_date', date('Y-m-d', strtotime('-30 days')));
             $endDate = request()->get('end_date', date('Y-m-d'));
 
-            $report = array_map(static function ($facility) {
+            $report = array_map(static function ($facility) use ($startDate, $endDate) {
+                $reservations = Reservation::where('facility_id', $facility['id'])
+                    ->whereBetween('start_date', [$startDate, $endDate])
+                    ->where('status', 'approved')
+                    ->get();
+                $totalHours = 0;
+                foreach ($reservations as $reservation) {
+                    $start = strtotime($reservation['start_date']);
+                    $end = strtotime($reservation['end_date']);
+                    if ($start !== false && $end !== false && $end > $start) {
+                        $totalHours += ($end - $start) / 3600;
+                    }
+                }
+
                 return [
                     'id' => $facility['id'],
                     'name' => $facility['name'],
-                    'bookings' => 0,
-                    'total_hours' => 0,
+                    'bookings' => count($reservations),
+                    'total_hours' => round($totalHours, 2),
                 ];
             }, Facility::where('is_active', 1)->get());
 
@@ -42,13 +55,19 @@ class ReportsController extends \Controller
             $startDate = request()->get('start_date', date('Y-m-d', strtotime('-30 days')));
             $endDate = request()->get('end_date', date('Y-m-d'));
 
-            $report = Asset::selectRaw('assets.id, assets.name, assets.condition, COUNT(asset_borrowings.id) as borrow_count')
-                          ->leftJoin('asset_borrowings', 'assets.id', '=', 'asset_borrowings.asset_id')
-                          ->whereBetween('asset_borrowings.checkout_date', [$startDate, $endDate])
-                          ->where('assets.is_active', 1)
-                          ->groupBy('assets.id', 'assets.name', 'assets.condition')
-                          ->orderBy('borrow_count', 'DESC')
-                          ->get();
+            $report = [];
+            foreach (Asset::where('is_active', 1)->get() as $asset) {
+                $borrowings = AssetBorrowing::where('asset_id', $asset['id'])
+                    ->whereBetween('checkout_date', [$startDate, $endDate])
+                    ->get();
+                $report[] = [
+                    'id' => $asset['id'],
+                    'name' => $asset['name'],
+                    'condition' => $asset['condition'],
+                    'borrow_count' => count($borrowings),
+                ];
+            }
+            usort($report, static fn ($a, $b) => $b['borrow_count'] <=> $a['borrow_count']);
 
             return response()->json([
                 'status' => 'success',
@@ -105,13 +124,25 @@ class ReportsController extends \Controller
         $this->authorize('admin');
 
         try {
-            $overdueAssets = AssetBorrowing::selectRaw('asset_borrowings.*, users.email, assets.name as asset_name, asset_borrowings.expected_return_date, DATEDIFF(NOW(), asset_borrowings.expected_return_date) as days_overdue')
-                                          ->join('users', 'asset_borrowings.user_id', '=', 'users.id')
-                                          ->join('assets', 'asset_borrowings.asset_id', '=', 'assets.id')
-                                          ->where('asset_borrowings.actual_return_date', null)
-                                          ->where('asset_borrowings.expected_return_date', '<', now())
-                                          ->orderBy('days_overdue', 'DESC')
-                                          ->get();
+            $overdueAssets = [];
+            foreach (AssetBorrowing::all() as $borrowing) {
+                if ($borrowing['actual_return_date'] !== null) {
+                    continue;
+                }
+
+                $expectedReturn = strtotime($borrowing['expected_return_date']);
+                if ($expectedReturn === false || $expectedReturn >= time()) {
+                    continue;
+                }
+
+                $user = User::find($borrowing['user_id']);
+                $asset = Asset::find($borrowing['asset_id']);
+                $borrowing['email'] = $user ? $user->email : null;
+                $borrowing['asset_name'] = $asset ? $asset->name : null;
+                $borrowing['days_overdue'] = (int) floor((time() - $expectedReturn) / 86400);
+                $overdueAssets[] = $borrowing;
+            }
+            usort($overdueAssets, static fn ($a, $b) => $b['days_overdue'] <=> $a['days_overdue']);
 
             return response()->json([
                 'status' => 'success',
@@ -142,7 +173,7 @@ class ReportsController extends \Controller
             $stats = [
                 'pending' => MaintenanceRecord::where('status', 'pending')->count(),
                 'in_progress' => MaintenanceRecord::where('status', 'in-progress')->count(),
-                'completed' => MaintenanceRecord::whereBetween('completed_at', [$startDate, $endDate])->where('status', 'completed')->count(),
+                'completed' => MaintenanceRecord::whereBetween('completion_date', [$startDate, $endDate])->where('status', 'completed')->count(),
                 'total_cost' => MaintenanceRecord::whereBetween('created_at', [$startDate, $endDate])->sum('cost'),
             ];
 
@@ -171,13 +202,22 @@ class ReportsController extends \Controller
             $startDate = request()->get('start_date', date('Y-m-d', strtotime('-30 days')));
             $endDate = request()->get('end_date', date('Y-m-d'));
 
-            $cancellations = Reservation::selectRaw('users.username, COUNT(reservations.id) as cancellation_count')
-                                       ->join('users', 'reservations.user_id', '=', 'users.id')
-                                       ->whereBetween('reservations.updated_at', [$startDate, $endDate])
-                                       ->where('reservations.status', 'cancelled')
-                                       ->groupBy('users.id', 'users.username')
-                                       ->orderBy('cancellation_count', 'DESC')
-                                       ->get();
+            $counts = [];
+            foreach (Reservation::whereBetween('updated_at', [$startDate, $endDate])
+                ->where('status', 'cancelled')
+                ->get() as $reservation) {
+                $user = User::find($reservation['user_id']);
+                $username = $user ? $user->username : 'Unknown';
+                $counts[$username] = ($counts[$username] ?? 0) + 1;
+            }
+            $cancellations = [];
+            foreach ($counts as $username => $count) {
+                $cancellations[] = [
+                    'username' => $username,
+                    'cancellation_count' => $count,
+                ];
+            }
+            usort($cancellations, static fn ($a, $b) => $b['cancellation_count'] <=> $a['cancellation_count']);
 
             return response()->json([
                 'status' => 'success',

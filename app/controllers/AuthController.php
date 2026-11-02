@@ -10,7 +10,6 @@ class AuthController extends \Controller
         $fv->name('email')->required()->valid_email();
         $fv->name('username')->required()->min_length(3);
         $fv->name('password')->required()->min_length(8);
-        $fv->name('role')->required()->in_list(['student', 'faculty', 'staff', 'admin']);
 
         if (!empty($fv->errors)) {
             return $this->response_json([
@@ -23,7 +22,6 @@ class AuthController extends \Controller
         $email = $this->request->post('email');
         $username = $this->request->post('username');
         $password = $this->request->post('password');
-        $role = $this->request->post('role');
 
         $existing = User::find_by('email', $email);
         if ($existing) {
@@ -46,7 +44,7 @@ class AuthController extends \Controller
                 'email' => $email,
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
-                'role' => $role,
+                'role' => 'student',
                 'is_active' => 1,
             ]);
 
@@ -106,14 +104,20 @@ class AuthController extends \Controller
             ], 403);
         }
 
-        $token = $this->generateToken($user);
+        $tokens = $this->api->issue_tokens([
+            'id' => $user['id'],
+            'role' => $user['role'],
+        ]);
 
         return $this->response_json([
             'status' => 'success',
             'message' => 'Login successful',
             'data' => [
                 'user' => $user,
-                'token' => $token,
+                'token' => $tokens['access_token'],
+                'access_token' => $tokens['access_token'],
+                'refresh_token' => $tokens['refresh_token'],
+                'expires_in' => $tokens['expires_in'],
             ],
         ], 200);
     }
@@ -126,65 +130,19 @@ class AuthController extends \Controller
         ], 200);
     }
 
-    private function generateToken($user)
-    {
-        $payload = json_encode([
-            'iss' => env('APP_URL'),
-            'sub' => $user['id'],
-            'iat' => time(),
-            'exp' => time() + (7 * 24 * 60 * 60),
-            'user' => [
-                'id' => $user['id'],
-                'email' => $user['email'],
-                'role' => $user['role'],
-            ],
-        ]);
-
-        $secret = env('JWT_SECRET');
-        $signature = base64_encode(hash_hmac('sha256', $payload, $secret, true));
-        return base64_encode($payload) . '.' . base64_encode($signature);
-    }
-
     public function refreshToken()
     {
-        try {
-            $user = $this->getCurrentUser();
-            if (!$user) {
-                return $this->response_json([
-                    'status' => 'error',
-                    'message' => 'Invalid token',
-                ], 401);
-            }
+        $this->populate_json_input();
+        $refreshToken = $this->request->post('refresh_token');
 
-            $token = $this->generateToken($user);
-
-            return $this->response_json([
-                'status' => 'success',
-                'data' => ['token' => $token],
-            ], 200);
-        } catch (\Exception $e) {
+        if (!is_string($refreshToken) || $refreshToken === '') {
             return $this->response_json([
                 'status' => 'error',
-                'message' => 'Token refresh failed',
-            ], 401);
+                'message' => 'Refresh token is required',
+            ], 400);
         }
-    }
 
-    private function getCurrentUser()
-    {
-        $headers = getallheaders();
-        $authHeader = $headers['Authorization'] ?? '';
-        if (preg_match('/Bearer\s+(.*)/', $authHeader, $matches)) {
-            $token = $matches[1];
-            $parts = explode('.', $token);
-            if (count($parts) !== 2) return null;
-
-            $payload = json_decode(base64_decode($parts[0]), true);
-            if (!$payload || !isset($payload['sub'])) return null;
-
-            return User::find($payload['sub']);
-        }
-        return null;
+        $this->api->refresh_access_token($refreshToken);
     }
 
     private function response_json($data, $status = 200)

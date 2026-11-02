@@ -46,25 +46,6 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 $router->get('/', 'Welcome::index');
 
-$router->get('create-migration/{migration_class}', 'MigrationController::create_migration');
-$router->get('create-migration/{migration_class}/{type}', 'MigrationController::create_migration');
-
-$router->get('migrate/dry-run', 'MigrationController::migrate_dry');
-$router->get('migrate', 'MigrationController::migrate');
-$router->get('migrate-to/{version}', 'MigrationController::migrate_to');
-
-$router->get('rollback', 'MigrationController::rollback');
-$router->get('rollback/{steps}', 'MigrationController::rollback');
-$router->get('rollback-to/{version}', 'MigrationController::rollback_to');
-$router->get('rollback-all', 'MigrationController::rollback_all');
-
-$router->get('refresh', 'MigrationController::refresh');
-$router->get('reset', 'MigrationController::reset');
-$router->get('fresh', 'MigrationController::fresh');
-
-$router->get('status', 'MigrationController::status');
-$router->get('preview', 'MigrationController::preview');
-
 // ============================================================================
 // API ROUTES - Campus Facility Booking System
 // ============================================================================

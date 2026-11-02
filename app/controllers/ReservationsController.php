@@ -127,8 +127,18 @@ class ReservationsController extends \Controller
     public function cancel($id)
     {
         try {
+            $user = auth()->user();
             $reservation = Reservation::findOrFail($id);
-            $this->authorize('update', $reservation);
+
+            if (
+                ($user['role'] ?? null) !== 'admin'
+                && (int) $reservation->user_id !== (int) $user['id']
+            ) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized',
+                ], 403);
+            }
 
             if ($reservation->status == 'completed' || $reservation->status == 'cancelled') {
                 return response()->json([

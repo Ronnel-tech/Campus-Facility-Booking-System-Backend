@@ -84,15 +84,14 @@ if (!function_exists('auth')) {
         $guard = new class {
             public function user()
             {
-                $headers = function_exists('getallheaders') ? getallheaders() : [];
-                $authorization = $headers['Authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
-                if (!preg_match('/^Bearer\s+([^.]+\.[^.]+)$/i', trim($authorization), $matches)) return null;
+                $payload = lava_instance()->api->require_jwt();
+                $user = User::find($payload['sub']);
 
-                $parts = explode('.', $matches[1], 2);
-                $payload = json_decode(base64_decode($parts[0]), true);
-                if (!is_array($payload) || empty($payload['sub'])) return null;
+                if (!$user || !(int) $user->is_active) {
+                    return null;
+                }
 
-                return User::find($payload['sub']);
+                return $user;
             }
         };
 

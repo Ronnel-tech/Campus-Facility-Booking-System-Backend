@@ -74,16 +74,10 @@ class AdminController extends \Controller
             $page = request()->get('page', 1);
             $limit = request()->get('limit', 10);
 
-            $query = User::with('profile');
+            $query = User::query();
 
             if ($role) {
                 $query->where('role', $role);
-            }
-
-            if ($status) {
-                $query->whereHas('profile', function ($q) {
-                    $q->where('is_suspended', request()->get('status') === 'suspended' ? 1 : 0);
-                });
             }
 
             if ($search) {
@@ -91,10 +85,19 @@ class AdminController extends \Controller
                       ->orWhere('email', 'LIKE', "%{$search}%");
             }
 
-            $total = $query->count();
-            $users = $query->limit($limit)
-                          ->offset(($page - 1) * $limit)
-                          ->get();
+            $users = $query->get();
+            $users = array_values(array_filter($users, static function ($user) use ($status) {
+                if (!$status) {
+                    return true;
+                }
+
+                $profile = UserProfile::where('user_id', $user['id'])->first();
+                $isSuspended = $profile && (int) $profile->is_suspended === 1;
+                return $status === 'suspended' ? $isSuspended : !$isSuspended;
+            }));
+
+            $total = count($users);
+            $users = array_slice($users, ($page - 1) * $limit, $limit);
 
             return response()->json([
                 'status' => 'success',
