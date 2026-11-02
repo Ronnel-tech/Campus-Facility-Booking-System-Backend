@@ -74,14 +74,14 @@ class AssetsController extends \Controller
     {
         $this->authorize('admin');
 
-        $this->validate([
-            'asset_tag' => 'required|unique:assets',
-            'name' => 'required|string',
-            'category_id' => 'required|exists:asset_categories,id',
-            'quantity' => 'required|integer|min:1',
-        ]);
-
         try {
+            $this->validate([
+                'asset_tag' => 'required|unique:assets',
+                'name' => 'required|string',
+                'category_id' => 'required|exists:asset_categories,id',
+                'quantity' => 'required|integer|min:1',
+            ]);
+
             $asset = Asset::create([
                 'asset_tag' => request()->get('asset_tag'),
                 'name' => request()->get('name'),
