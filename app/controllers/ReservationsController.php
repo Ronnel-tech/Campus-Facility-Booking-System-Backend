@@ -107,7 +107,7 @@ class ReservationsController extends \Controller
             }
 
             $transactionModel = new Reservation();
-            $transactionModel->transaction();
+            $transactionModel->_transaction();
             try {
                 $reservation = Reservation::create([
                     'user_id' => $user->id,
@@ -147,7 +147,7 @@ class ReservationsController extends \Controller
                     $reservation->id,
                     'reservation'
                 );
-                $transactionModel->commit();
+                $transactionModel->_commit();
             } catch (\Exception $e) {
                 $transactionModel->_rollback();
                 throw $e;
@@ -321,7 +321,7 @@ class ReservationsController extends \Controller
 
             $oldStatus = $reservation->status;
             $transactionModel = new Reservation();
-            $transactionModel->transaction();
+            $transactionModel->_transaction();
             try {
                 $reservation->update([
                     'status' => 'approved',
@@ -346,7 +346,7 @@ class ReservationsController extends \Controller
                     $id,
                     'reservation'
                 );
-                $transactionModel->commit();
+                $transactionModel->_commit();
             } catch (\Exception $e) {
                 $transactionModel->_rollback();
                 throw $e;
