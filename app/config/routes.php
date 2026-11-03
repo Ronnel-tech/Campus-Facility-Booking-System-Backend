@@ -46,6 +46,22 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 $router->get('/', 'Welcome::index');
 
+// Migration routes are available only to the local CLI command. They are not
+// registered for HTTP requests, preventing public schema administration.
+if (PHP_SAPI === 'cli') {
+    $router->get('migrate', 'MigrationController::migrate');
+    $router->get('migrate-dry', 'MigrationController::migrate_dry');
+    $router->get('migrate-to/(:num)', 'MigrationController::migrate_to');
+    $router->get('rollback', 'MigrationController::rollback');
+    $router->get('rollback-to/(:num)', 'MigrationController::rollback_to');
+    $router->get('rollback-all', 'MigrationController::rollback_all');
+    $router->get('refresh', 'MigrationController::refresh');
+    $router->get('reset', 'MigrationController::reset');
+    $router->get('fresh', 'MigrationController::fresh');
+    $router->get('status', 'MigrationController::status');
+    $router->get('preview', 'MigrationController::preview');
+}
+
 // ============================================================================
 // API ROUTES - Campus Facility Booking System
 // ============================================================================

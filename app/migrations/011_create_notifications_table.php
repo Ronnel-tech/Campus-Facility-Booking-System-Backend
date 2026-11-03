@@ -33,7 +33,7 @@ class Create_notifications_table {
                 ],
                 'type' => [
                     'type'       => 'ENUM',
-                    'constraint' => "'reservation_approved','reservation_rejected','asset_checkout','asset_return','reservation_reminder','maintenance_update'",
+                    'constraint' => "'reservation_submitted','reservation_approved','reservation_rejected','reservation_cancelled','asset_checkout','asset_return','reservation_reminder','maintenance_update','maintenance_updated'", 
                     'null'       => FALSE,
                 ],
                 'title' => [
@@ -52,8 +52,8 @@ class Create_notifications_table {
                     'null'       => TRUE,
                 ],
                 'related_type' => [
-                    'type'       => 'ENUM',
-                    'constraint' => "'reservation','asset','maintenance'",
+                                    'type'       => 'VARCHAR',
+                    'constraint' => 50,
                     'null'       => TRUE,
                 ],
                 'is_read' => [
