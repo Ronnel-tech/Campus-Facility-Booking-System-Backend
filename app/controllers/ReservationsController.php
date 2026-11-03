@@ -172,7 +172,7 @@ class ReservationsController extends \Controller
             $page = request()->get('page', 1);
             $limit = request()->get('limit', 10);
 
-            $query = Reservation::query();
+            $query = Reservation::where('id', '>', 0);
 
             if ($status) {
                 $query->where('status', $status);
