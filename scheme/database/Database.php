@@ -589,7 +589,8 @@ class Database {
 
         foreach ($fields as $column => $field) {
             $this->validate_identifier($column);
-            $values[]      = $column . ' = ?';
+            $quoted_column = '`' . str_replace('`', '``', $column) . '`';
+            $values[]      = $quoted_column . ' = ?';
             $field_array[] = $field;
         }
         $this->bind_values = array_merge($field_array, $this->bind_values);
