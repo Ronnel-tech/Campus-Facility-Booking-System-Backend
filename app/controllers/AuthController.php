@@ -6,14 +6,6 @@ class AuthController extends \Controller
     public function register()
     {
         $this->populate_json_input();
-        
-        // HIGH PRIORITY FIX #15: Rate limiting on auth endpoints
-        if (!$this->checkRateLimit('register_attempts')) {
-            return $this->response_json([
-                'status' => 'error',
-                'message' => 'Too many registration attempts. Please try again later.',
-            ], 429);
-        }
 
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
@@ -72,7 +64,6 @@ class AuthController extends \Controller
 
             $user = User::find($userId);
             $transactionModel->_commit();
-            $this->clearRateLimit('register_attempts');
 
             return $this->response_json([
                 'status' => 'success',
@@ -92,15 +83,6 @@ class AuthController extends \Controller
     public function login()
     {
         $this->populate_json_input();
-        
-        // HIGH PRIORITY FIX #15: Rate limiting on auth endpoints
-        $email = $this->request->post('email');
-        if (!$this->checkRateLimit('login_attempts', $email)) {
-            return $this->response_json([
-                'status' => 'error',
-                'message' => 'Too many login attempts. Please try again later.',
-            ], 429);
-        }
 
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
@@ -136,9 +118,6 @@ class AuthController extends \Controller
             'id' => $user['id'],
             'role' => $user['role'],
         ]);
-
-        // Clear rate limit on successful login
-        $this->clearRateLimit('login_attempts', $email);
 
         return $this->response_json([
             'status' => 'success',
