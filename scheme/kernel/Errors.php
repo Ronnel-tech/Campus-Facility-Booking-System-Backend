@@ -136,6 +136,14 @@ class Errors
 	 */
 	public function show_database_error($message, $sql = '', $bindings = [], $exception = null, $template = 'error_db')
 	{
+		if (PHP_SAPI === 'cli') {
+			fwrite(STDERR, "Database connection/query error: " . $message . PHP_EOL);
+			if (!empty($sql)) {
+				fwrite(STDERR, "Query: " . $sql . PHP_EOL);
+			}
+			exit(1);
+		}
+
 		http_response_code(500);
 		
 		if (config_item('environment') !== 'development') {
