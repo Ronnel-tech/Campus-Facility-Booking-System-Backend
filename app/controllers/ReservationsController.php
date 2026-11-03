@@ -160,9 +160,14 @@ class ReservationsController extends \Controller
             ], 201);
         } catch (\Exception $e) {
             error_log('Reservation creation failed: ' . $e->getMessage());
+            $message = 'Unable to create reservation. Please check the submitted details.';
+            if (config_item('environment') === 'development') {
+                $message = $e->getMessage();
+            }
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Unable to create reservation. Please check the submitted details.',
+                'message' => $message,
             ], 422);
         }
     }
