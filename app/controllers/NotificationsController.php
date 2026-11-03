@@ -37,7 +37,6 @@ class NotificationsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch notifications',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

@@ -43,7 +43,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate facility usage report',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -80,7 +79,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate asset borrowing report',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -119,7 +117,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate reservation stats',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -157,7 +154,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate overdue returns report',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -203,7 +199,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate maintenance log',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -243,7 +238,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate cancellation report',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -267,7 +261,6 @@ class ReportsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to export report',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

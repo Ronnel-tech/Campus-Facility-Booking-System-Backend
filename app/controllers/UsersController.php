@@ -61,7 +61,6 @@ class UsersController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update profile',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -150,7 +149,6 @@ class UsersController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update preferences',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

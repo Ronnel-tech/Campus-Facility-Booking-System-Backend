@@ -65,7 +65,6 @@ class AuthController extends \Controller
             return $this->response_json([
                 'status' => 'error',
                 'message' => 'Registration failed',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

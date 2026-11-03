@@ -46,7 +46,6 @@ class FacilitiesController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch facilities',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -135,7 +134,6 @@ class FacilitiesController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create facility',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -169,7 +167,6 @@ class FacilitiesController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update facility',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

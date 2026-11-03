@@ -58,7 +58,6 @@ class AdminController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch dashboard data',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

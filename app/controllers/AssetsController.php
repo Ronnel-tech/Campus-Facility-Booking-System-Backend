@@ -47,7 +47,6 @@ class AssetsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch assets',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -134,7 +133,6 @@ class AssetsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create asset',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -166,7 +164,6 @@ class AssetsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update asset',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

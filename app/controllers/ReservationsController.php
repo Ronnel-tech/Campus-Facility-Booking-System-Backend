@@ -149,7 +149,7 @@ class ReservationsController extends \Controller
                 );
                 $transactionModel->commit();
             } catch (\Exception $e) {
-                $transactionModel->rollback();
+                $transactionModel->_rollback();
                 throw $e;
             }
 
@@ -278,7 +278,6 @@ class ReservationsController extends \Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch reservations',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -288,6 +287,7 @@ class ReservationsController extends \Controller
         $this->authorize('admin');
 
         try {
+            $actor = auth()->user();
             $reservation = Reservation::findOrFail($id);
             if ($reservation->status !== 'pending') {
                 return response()->json([
@@ -295,26 +295,62 @@ class ReservationsController extends \Controller
                     'message' => 'Only pending reservations can be approved',
                 ], 400);
             }
+            if ((int) $reservation->user_id === (int) $actor->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Administrators cannot approve their own reservations',
+                ], 403);
+            }
+
+            if ($reservation->facility_id) {
+                $facility = Facility::findOrFail($reservation->facility_id);
+                $this->assertFacilityCanBeReserved(
+                    $facility,
+                    $reservation->start_date,
+                    $reservation->end_date,
+                    $reservation->attendee_count
+                );
+                $this->assertNoFacilityConflict(
+                    $reservation->facility_id,
+                    $reservation->start_date,
+                    $reservation->end_date,
+                    $reservation->id
+                );
+            }
+            $this->assertAssetsCanBeApproved($reservation);
+
             $oldStatus = $reservation->status;
-
-            $reservation->update([
-                'status' => 'approved',
-                'approved_by' => auth()->user()->id,
-                'approved_at' => now(),
-            ]);
-
-            ReservationAsset::where('reservation_id', $id)
-                           ->update(['status' => 'allocated']);
-
-            AuditLog::create([
-                'user_id' => auth()->user()->id,
-                'action' => 'reservation_approved',
-                'entity_type' => 'reservation',
-                'entity_id' => $id,
-                'old_values' => json_encode(['status' => $oldStatus]),
-                'new_values' => json_encode(['status' => 'approved']),
-            ]);
-            $this->sendNotification($reservation->user_id, 'reservation_approved', 'Reservation Approved', 'Your reservation has been approved', $id, 'reservation');
+            $transactionModel = new Reservation();
+            $transactionModel->transaction();
+            try {
+                $reservation->update([
+                    'status' => 'approved',
+                    'approved_by' => $actor->id,
+                    'approved_at' => now(),
+                ]);
+                ReservationAsset::where('reservation_id', $id)
+                    ->update(['status' => 'allocated']);
+                AuditLog::create([
+                    'user_id' => $actor->id,
+                    'action' => 'reservation_approved',
+                    'entity_type' => 'reservation',
+                    'entity_id' => $id,
+                    'old_values' => json_encode(['status' => $oldStatus]),
+                    'new_values' => json_encode(['status' => 'approved']),
+                ]);
+                $this->sendNotification(
+                    $reservation->user_id,
+                    'reservation_approved',
+                    'Reservation Approved',
+                    'Your reservation has been approved',
+                    $id,
+                    'reservation'
+                );
+                $transactionModel->commit();
+            } catch (\Exception $e) {
+                $transactionModel->_rollback();
+                throw $e;
+            }
 
             return response()->json([
                 'status' => 'success',
@@ -322,10 +358,11 @@ class ReservationsController extends \Controller
                 'data' => $reservation,
             ], 200);
         } catch (\Exception $e) {
+            error_log('Reservation approval failed: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to approve reservation',
-            ], 400);
+                'message' => 'Unable to approve reservation because availability could not be confirmed',
+            ], 422);
         }
     }
 
@@ -384,8 +421,11 @@ class ReservationsController extends \Controller
 
         $startTimestamp = strtotime($start);
         $endTimestamp = strtotime($end);
-        if ($startTimestamp === false || $endTimestamp === false) {
+        if ($startTimestamp === false || $endTimestamp === false || $endTimestamp <= $startTimestamp) {
             throw new \RuntimeException('Reservation dates are invalid');
+        }
+        if ($startTimestamp < time()) {
+            throw new \RuntimeException('Reservations cannot be made for dates in the past');
         }
 
         $durationHours = ($endTimestamp - $startTimestamp) / 3600;
@@ -402,7 +442,8 @@ class ReservationsController extends \Controller
             ->where('status', '!=', 'cancelled')
             ->where('status', '!=', 'rejected')
             ->count();
-        if ($dailyBookings >= (int) $facility->max_bookings_per_day) {
+        $maxBookingsPerDay = (int) ($facility->max_bookings_per_day ?? 0);
+        if ($maxBookingsPerDay > 0 && $dailyBookings >= $maxBookingsPerDay) {
             throw new \RuntimeException('The facility has reached its daily booking limit');
         }
 
@@ -429,14 +470,19 @@ class ReservationsController extends \Controller
         }
     }
 
-    private function assertNoFacilityConflict($facilityId, $start, $end)
+    private function assertNoFacilityConflict($facilityId, $start, $end, $excludeReservationId = null)
     {
-        $conflicts = Reservation::where('facility_id', $facilityId)
-            ->where('status', '!=', 'cancelled')
-            ->where('status', '!=', 'rejected')
+        $query = Reservation::where('facility_id', $facilityId)
+            ->where('status', 'approved')
             ->where('start_date', '<', $end)
-            ->where('end_date', '>', $start)
-            ->get();
+            ->where('end_date', '>', $start);
+        $conflicts = $query->get();
+        if ($excludeReservationId !== null) {
+            $conflicts = array_values(array_filter($conflicts, static function ($conflict) use ($excludeReservationId) {
+                $conflictId = is_array($conflict) ? ($conflict['id'] ?? 0) : ($conflict->id ?? 0);
+                return (int) $conflictId !== (int) $excludeReservationId;
+            }));
+        }
 
         if (count($conflicts) > 0) {
             throw new \RuntimeException('The facility is already reserved during the requested period');
@@ -467,6 +513,13 @@ class ReservationsController extends \Controller
             if (!(int) $asset->is_active || !(int) $asset->is_borrowable || $asset->status !== 'available') {
                 throw new \RuntimeException('One or more requested assets are not available');
             }
+            $maintenance = MaintenanceRecord::where('asset_id', $assetId)
+                ->where('status', '!=', 'completed')
+                ->where('status', '!=', 'cancelled')
+                ->first();
+            if ($maintenance) {
+                throw new \RuntimeException('One or more requested assets are under maintenance');
+            }
             if ($quantity > (int) $asset->quantity_available) {
                 throw new \RuntimeException('Requested asset quantity is not available');
             }
@@ -475,6 +528,39 @@ class ReservationsController extends \Controller
         }
 
         return $validated;
+    }
+
+    private function assertAssetsCanBeApproved($reservation)
+    {
+        $reservationAssets = ReservationAsset::where('reservation_id', $reservation->id)->get();
+        foreach ($reservationAssets as $reservationAsset) {
+            $reservationAssetId = is_array($reservationAsset) ? ($reservationAsset['asset_id'] ?? null) : $reservationAsset->asset_id;
+            $reservationQuantity = is_array($reservationAsset) ? ($reservationAsset['quantity'] ?? 0) : $reservationAsset->quantity;
+            $asset = Asset::findOrFail($reservationAssetId);
+            if (!(int) $asset->is_active || !(int) $asset->is_borrowable || $asset->status !== 'available') {
+                throw new \RuntimeException('One or more requested assets are no longer available');
+            }
+            $maintenance = MaintenanceRecord::where('asset_id', $asset->id)
+                ->where('status', '!=', 'completed')
+                ->where('status', '!=', 'cancelled')
+                ->first();
+            if ($maintenance) {
+                throw new \RuntimeException('One or more requested assets are under maintenance');
+            }
+            if ((int) $reservationQuantity > (int) $asset->quantity_available) {
+                throw new \RuntimeException('Requested asset quantity is no longer available');
+            }
+
+            $borrowings = AssetBorrowing::where('asset_id', $asset->id)
+                ->where('status', '!=', 'returned')
+                ->where('status', '!=', 'resolved')
+                ->get();
+            foreach ($borrowings as $borrowing) {
+                if ($borrowing['checkout_date'] < $reservation->end_date && $borrowing['expected_return_date'] > $reservation->start_date) {
+                    throw new \RuntimeException('One or more requested assets are currently borrowed');
+                }
+            }
+        }
     }
 
     private function sendNotification($userId, $type, $title, $message, $relatedId = null, $relatedType = null)
