@@ -76,8 +76,16 @@ class FacilitiesController extends \Controller
             $startDate = request()->get('start_date');
             $endDate = request()->get('end_date');
 
+            if (!$startDate || !$endDate) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'start_date and end_date are required',
+                ], 422);
+            }
+
             $availability = $facility->availability()
-                                    ->whereBetween('date', [$startDate, $endDate])
+                                    ->where('date', '>=', $startDate)
+                                    ->where('date', '<=', $endDate)
                                     ->get();
 
             return response()->json([
