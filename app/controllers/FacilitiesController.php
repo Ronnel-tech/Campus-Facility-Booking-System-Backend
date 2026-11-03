@@ -23,8 +23,8 @@ class FacilitiesController extends \Controller
             }
 
             if ($search) {
-                $query->where('name', 'LIKE', "%{$search}%")
-                      ->orWhere('description', 'LIKE', "%{$search}%");
+                $query->where('name', 'LIKE', $search)
+                      ->orWhere('description', 'LIKE', $search);
             }
 
             $total = $query->count();
@@ -145,6 +145,61 @@ class FacilitiesController extends \Controller
         try {
             $facility = Facility::findOrFail($id);
 
+            // CRITICAL FIX #6: Check if booking limits reduction violates existing reservations
+            $newBookingLimitHours = request()->get('booking_limit_hours');
+            $newMaxBookingsPerDay = request()->get('max_bookings_per_day');
+
+            if ($newBookingLimitHours !== null && (int) $newBookingLimitHours < (int) $facility->booking_limit_hours) {
+                $violatingReservations = Reservation::where('facility_id', $id)
+                    ->where('status', 'approved')
+                    ->get();
+
+                $violatingCount = 0;
+                foreach ($violatingReservations as $reservation) {
+                    $startTimestamp = strtotime($reservation->start_date);
+                    $endTimestamp = strtotime($reservation->end_date);
+                    $durationHours = ($endTimestamp - $startTimestamp) / 3600;
+                    if ($durationHours > (int) $newBookingLimitHours) {
+                        $violatingCount++;
+                    }
+                }
+
+                if ($violatingCount > 0) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Cannot reduce booking limit. ' . $violatingCount . ' existing approved reservation(s) exceed the new limit.',
+                        'violating_reservations_count' => $violatingCount,
+                    ], 422);
+                }
+            }
+
+            if ($newMaxBookingsPerDay !== null && (int) $newMaxBookingsPerDay < (int) $facility->max_bookings_per_day) {
+                $dayStart = date('Y-m-d');
+                $dayEnd = date('Y-m-d', strtotime('+1 day'));
+
+                $violatingDays = [];
+                for ($i = 0; $i < 365; $i++) {
+                    $checkDate = date('Y-m-d', strtotime("+$i days"));
+                    $dailyBookings = Reservation::where('facility_id', $id)
+                        ->where('status', 'approved')
+                        ->where('start_date', '>=', $checkDate . ' 00:00:00')
+                        ->where('start_date', '<', date('Y-m-d', strtotime("$checkDate +1 day")) . ' 00:00:00')
+                        ->count();
+
+                    if ($dailyBookings > (int) $newMaxBookingsPerDay) {
+                        $violatingDays[] = $checkDate;
+                    }
+                }
+
+                if (count($violatingDays) > 0) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Cannot reduce max bookings per day. ' . count($violatingDays) . ' day(s) have more approved bookings than the new limit.',
+                        'violating_days_count' => count($violatingDays),
+                    ], 422);
+                }
+            }
+
             $facility->update([
                 'name' => request()->get('name', $facility->name),
                 'category_id' => request()->get('category_id', $facility->category_id),
@@ -164,6 +219,7 @@ class FacilitiesController extends \Controller
                 'data' => $facility,
             ], 200);
         } catch (\Exception $e) {
+            error_log('Facility update failed: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update facility',
@@ -205,6 +261,118 @@ class FacilitiesController extends \Controller
                 'status' => 'error',
                 'message' => 'Failed to fetch categories',
             ], 400);
+        }
+    }
+
+    public function storeAvailability()
+    {
+        $this->authorize('admin');
+
+        $this->validate([
+            'facility_id' => 'required|exists:facilities,id',
+            'date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
+        ]);
+
+        try {
+            $facilityId = request()->get('facility_id');
+            $date = request()->get('date');
+            $startTime = request()->get('start_time');
+            $endTime = request()->get('end_time');
+
+            // HIGH PRIORITY FIX #16: Facility Availability Conflict Detection
+            $this->validateFacilityAvailabilityWindows($facilityId, $date, $startTime, $endTime);
+
+            $availability = FacilityAvailability::create([
+                'facility_id' => $facilityId,
+                'date' => $date,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'is_available' => 1,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Availability window created successfully',
+                'data' => $availability,
+            ], 201);
+        } catch (\Exception $e) {
+            error_log('Availability creation failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function updateAvailability($id)
+    {
+        $this->authorize('admin');
+
+        try {
+            $availability = FacilityAvailability::findOrFail($id);
+
+            $facilityId = request()->get('facility_id', $availability->facility_id);
+            $date = request()->get('date', $availability->date);
+            $startTime = request()->get('start_time', $availability->start_time);
+            $endTime = request()->get('end_time', $availability->end_time);
+
+            // HIGH PRIORITY FIX #16: Facility Availability Conflict Detection
+            $this->validateFacilityAvailabilityWindows($facilityId, $date, $startTime, $endTime, $id);
+
+            $availability->update([
+                'facility_id' => $facilityId,
+                'date' => $date,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'is_available' => request()->get('is_available', $availability->is_available),
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Availability window updated successfully',
+                'data' => $availability,
+            ], 200);
+        } catch (\Exception $e) {
+            error_log('Availability update failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    private function validateFacilityAvailabilityWindows($facilityId, $date, $startTime, $endTime, $excludeId = null)
+    {
+        $startSeconds = strtotime($startTime);
+        $endSeconds = strtotime($endTime);
+
+        if ($startSeconds === false || $endSeconds === false) {
+            throw new \RuntimeException('Invalid start_time or end_time format');
+        }
+
+        if ($endSeconds <= $startSeconds) {
+            throw new \RuntimeException('end_time must be after start_time');
+        }
+
+        $query = FacilityAvailability::where('facility_id', $facilityId)
+            ->where('date', $date);
+
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        $existingWindows = $query->get();
+
+        foreach ($existingWindows as $window) {
+            $existingStart = strtotime($window['start_time']);
+            $existingEnd = strtotime($window['end_time']);
+
+            // Check for overlap: new window starts before existing ends AND new window ends after existing starts
+            if ($startSeconds < $existingEnd && $endSeconds > $existingStart) {
+                throw new \RuntimeException('This availability window overlaps with an existing window on the same date');
+            }
         }
     }
 }

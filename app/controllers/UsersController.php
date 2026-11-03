@@ -45,8 +45,28 @@ class UsersController extends \Controller
                 'bio' => request()->get('bio', $profile->bio),
             ]);
 
+            // HIGH FIX #14: Add email validation on update
             if (request()->has('email') && request()->get('email') !== $user->email) {
-                $user->update(['email' => request()->get('email')]);
+                $newEmail = request()->get('email');
+                
+                // Validate email format
+                if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Invalid email format',
+                    ], 422);
+                }
+                
+                // Check if email already exists
+                $existingUser = User::find_by('email', $newEmail);
+                if ($existingUser) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Email already in use',
+                    ], 409);
+                }
+                
+                $user->update(['email' => $newEmail]);
             }
 
             return response()->json([

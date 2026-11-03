@@ -143,8 +143,35 @@ class AssetsController extends \Controller
 
         try {
             $asset = Asset::findOrFail($id);
+            
+            // HIGH PRIORITY FIX #17: Concurrent Update Data Loss (Optimistic Locking)
+            $clientVersion = request()->get('_version');
+            if ($clientVersion !== null) {
+                if ((int) $clientVersion !== (int) $asset->version) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Conflict: Asset has been modified by another user. Please refresh and try again.',
+                        'data' => ['current_version' => $asset->version],
+                    ], 409);
+                }
+            }
+            
+            // CRITICAL FIX: Validate quantity against active borrowings
+            if (request()->has('quantity')) {
+                $newQuantity = (int) request()->get('quantity');
+                $activeBorrowings = AssetBorrowing::where('asset_id', $id)
+                    ->whereIn('status', ['pending', 'approved', 'checked_out'])
+                    ->sum('quantity');
+                
+                if ($newQuantity < $activeBorrowings) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => "Cannot reduce quantity below active borrowings. Active: $activeBorrowings, Requested: $newQuantity",
+                    ], 422);
+                }
+            }
 
-            $asset->update([
+            $updatedData = [
                 'name' => request()->get('name', $asset->name),
                 'category_id' => request()->get('category_id', $asset->category_id),
                 'description' => request()->get('description', $asset->description),
@@ -153,7 +180,10 @@ class AssetsController extends \Controller
                 'status' => request()->get('status', $asset->status),
                 'current_location' => request()->get('current_location', $asset->current_location),
                 'is_borrowable' => request()->get('is_borrowable', $asset->is_borrowable),
-            ]);
+                'version' => $asset->version + 1,
+            ];
+
+            $asset->update($updatedData);
 
             return response()->json([
                 'status' => 'success',

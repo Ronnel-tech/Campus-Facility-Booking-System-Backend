@@ -6,6 +6,15 @@ class AuthController extends \Controller
     public function register()
     {
         $this->populate_json_input();
+        
+        // HIGH PRIORITY FIX #15: Rate limiting on auth endpoints
+        if (!$this->checkRateLimit('register_attempts')) {
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Too many registration attempts. Please try again later.',
+            ], 429);
+        }
+
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
         $fv->name('username')->required()->min_length(3);
@@ -39,6 +48,9 @@ class AuthController extends \Controller
             ], 400);
         }
 
+        // HIGH PRIORITY FIX #18: UserProfile creation transaction
+        $transactionModel = new User();
+        $transactionModel->_transaction();
         try {
             $userId = User::insert([
                 'email' => $email,
@@ -48,13 +60,19 @@ class AuthController extends \Controller
                 'is_active' => 1,
             ]);
 
-            UserProfile::insert([
+            $profile = UserProfile::insert([
                 'user_id' => $userId,
                 'violations_count' => 0,
                 'is_suspended' => 0,
             ]);
 
+            if (!$profile) {
+                throw new \Exception('Failed to create user profile');
+            }
+
             $user = User::find($userId);
+            $transactionModel->_commit();
+            $this->clearRateLimit('register_attempts');
 
             return $this->response_json([
                 'status' => 'success',
@@ -62,9 +80,11 @@ class AuthController extends \Controller
                 'data' => $user,
             ], 201);
         } catch (\Exception $e) {
+            $transactionModel->_rollback();
+            error_log('Registration transaction failed: ' . $e->getMessage());
             return $this->response_json([
                 'status' => 'error',
-                'message' => 'Registration failed',
+                'message' => 'Registration failed. Please try again.',
             ], 400);
         }
     }
@@ -72,6 +92,16 @@ class AuthController extends \Controller
     public function login()
     {
         $this->populate_json_input();
+        
+        // HIGH PRIORITY FIX #15: Rate limiting on auth endpoints
+        $email = $this->request->post('email');
+        if (!$this->checkRateLimit('login_attempts', $email)) {
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Too many login attempts. Please try again later.',
+            ], 429);
+        }
+
         $fv = load_class('Form_validation', 'libraries');
         $fv->name('email')->required()->valid_email();
         $fv->name('password')->required();
@@ -84,7 +114,6 @@ class AuthController extends \Controller
             ], 400);
         }
 
-        $email = $this->request->post('email');
         $password = $this->request->post('password');
 
         $user = User::find_by('email', $email);
@@ -108,6 +137,9 @@ class AuthController extends \Controller
             'role' => $user['role'],
         ]);
 
+        // Clear rate limit on successful login
+        $this->clearRateLimit('login_attempts', $email);
+
         return $this->response_json([
             'status' => 'success',
             'message' => 'Login successful',
@@ -119,6 +151,116 @@ class AuthController extends \Controller
                 'expires_in' => $tokens['expires_in'],
             ],
         ], 200);
+    }
+
+    public function forgotPassword()
+    {
+        $this->populate_json_input();
+        $fv = load_class('Form_validation', 'libraries');
+        $fv->name('email')->required()->valid_email();
+
+        if (!empty($fv->errors)) {
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $fv->errors,
+            ], 400);
+        }
+
+        $email = $this->request->post('email');
+
+        try {
+            $user = User::find_by('email', $email);
+            
+            if ($user) {
+                // HIGH PRIORITY FIX #12: Password reset functionality
+                $token = bin2hex(random_bytes(32));
+                $tokenHash = hash('sha256', $token);
+                
+                // Delete existing tokens
+                PasswordReset::where('user_id', $user['id'])->delete();
+                
+                // Create new password reset token
+                PasswordReset::insert([
+                    'user_id' => $user['id'],
+                    'token' => $tokenHash,
+                    'expires_at' => date('Y-m-d H:i:s', time() + 3600),
+                ]);
+
+                // TODO: Send email with reset token
+                // For now, log the token for testing
+                error_log("Password reset token for {$email}: {$token}");
+            }
+
+            // Always return 200 to avoid email enumeration
+            return $this->response_json([
+                'status' => 'success',
+                'message' => 'If an account exists for this email, a password reset link will be sent.',
+            ], 200);
+        } catch (\Exception $e) {
+            error_log('Forgot password error: ' . $e->getMessage());
+            return $this->response_json([
+                'status' => 'success',
+                'message' => 'If an account exists for this email, a password reset link will be sent.',
+            ], 200);
+        }
+    }
+
+    public function resetPassword()
+    {
+        $this->populate_json_input();
+        $fv = load_class('Form_validation', 'libraries');
+        $fv->name('token')->required();
+        $fv->name('password')->required()->min_length(8);
+
+        if (!empty($fv->errors)) {
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $fv->errors,
+            ], 400);
+        }
+
+        $token = $this->request->post('token');
+        $password = $this->request->post('password');
+
+        try {
+            // HIGH PRIORITY FIX #12: Password reset functionality
+            $tokenHash = hash('sha256', $token);
+            $reset = PasswordReset::isTokenValid($tokenHash);
+
+            if (!$reset) {
+                return $this->response_json([
+                    'status' => 'error',
+                    'message' => 'Invalid or expired password reset token',
+                ], 400);
+            }
+
+            $transactionModel = new User();
+            $transactionModel->_transaction();
+            try {
+                User::where('id', $reset['user_id'])->update([
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                ]);
+
+                PasswordReset::where('id', $reset['id'])->delete();
+                $transactionModel->_commit();
+
+                return $this->response_json([
+                    'status' => 'success',
+                    'message' => 'Password reset successfully. Please log in.',
+                ], 200);
+            } catch (\Exception $e) {
+                $transactionModel->_rollback();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            error_log('Reset password error: ' . $e->getMessage());
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Password reset failed',
+            ], 400);
+        }
     }
 
     public function logout()
@@ -141,7 +283,29 @@ class AuthController extends \Controller
             ], 400);
         }
 
-        $this->api->refresh_access_token($refreshToken);
+        try {
+            $tokens = $this->api->refresh_access_token($refreshToken);
+            if (!$tokens) {
+                return $this->response_json([
+                    'status' => 'error',
+                    'message' => 'Token refresh failed',
+                ], 401);
+            }
+
+            return $this->response_json([
+                'status' => 'success',
+                'data' => [
+                    'access_token' => $tokens['access_token'],
+                    'refresh_token' => $tokens['refresh_token'],
+                    'expires_in' => $tokens['expires_in'],
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            return $this->response_json([
+                'status' => 'error',
+                'message' => 'Token refresh failed',
+            ], 401);
+        }
     }
 
     private function response_json($data, $status = 200)
@@ -161,5 +325,27 @@ class AuthController extends \Controller
                 $_POST = $input;
             }
         }
+    }
+
+    private function checkRateLimit($type, $identifier = null)
+    {
+        $cache = load_class('Cache', 'libraries');
+        $cacheKey = $type . '_' . ($identifier ?? $_SERVER['REMOTE_ADDR']);
+        
+        $attempts = $cache->get($cacheKey) ?? 0;
+        
+        if ($attempts >= 5) {
+            return false;
+        }
+
+        $cache->set($cacheKey, $attempts + 1, 900);
+        return true;
+    }
+
+    private function clearRateLimit($type, $identifier = null)
+    {
+        $cache = load_class('Cache', 'libraries');
+        $cacheKey = $type . '_' . ($identifier ?? $_SERVER['REMOTE_ADDR']);
+        $cache->delete($cacheKey);
     }
 }

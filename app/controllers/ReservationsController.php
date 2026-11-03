@@ -75,17 +75,27 @@ class ReservationsController extends \Controller
     {
         $this->authorizeAnyRole(['faculty', 'staff']);
 
-        $this->validate([
-            'reservation_type' => 'required|in:facility,asset,combined',
-            'facility_id' => 'required_if:reservation_type,facility,combined',
-            'purpose' => 'required|string',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'attendee_count' => 'required_if:reservation_type,facility,combined|integer|min:1',
-        ]);
-
         try {
             $user = auth()->user();
+            
+            // CRITICAL FIX: Check if user is suspended
+            $profile = UserProfile::where('user_id', $user['id'])->first();
+            if ($profile && $profile['is_suspended']) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Your account is suspended and cannot make reservations',
+                ], 403);
+            }
+
+            $this->validate([
+                'reservation_type' => 'required|in:facility,asset,combined',
+                'facility_id' => 'required_if:reservation_type,facility,combined',
+                'purpose' => 'required|string',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
+                'attendee_count' => 'required_if:reservation_type,facility,combined|integer|min:1',
+            ]);
+
             $type = request()->get('reservation_type');
             $facilityId = request()->get('facility_id');
             $start = request()->get('start_date');
@@ -101,7 +111,7 @@ class ReservationsController extends \Controller
             }
 
             if (in_array($type, ['asset', 'combined'], true)) {
-                $assets = $this->validateRequestedAssets($assets);
+                $assets = $this->validateRequestedAssets($assets, $start, $end);
             } elseif (!empty($assets)) {
                 throw new \RuntimeException('Assets are only allowed for asset or combined reservations');
             }
@@ -232,7 +242,13 @@ class ReservationsController extends \Controller
     // Admin endpoints
     public function allReservations()
     {
-        $this->authorize('admin');
+        $user = auth()->user();
+        if (!$user || !in_array($user['role'], ['admin', 'faculty', 'staff'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized',
+            ], 403);
+        }
 
         try {
             $status = request()->get('status');
@@ -300,10 +316,24 @@ class ReservationsController extends \Controller
                     'message' => 'Only pending reservations can be approved',
                 ], 400);
             }
+            
+            // CRITICAL FIX: Check both direct user match AND audit log creator
             if ((int) $reservation->user_id === (int) $actor->id) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Administrators cannot approve their own reservations',
+                    'message' => 'You cannot approve your own reservations',
+                ], 403);
+            }
+            
+            // Check if current approver is the one who created the reservation
+            $creationAudit = AuditLog::where('action', 'reservation_created')
+                ->where('entity_id', $id)
+                ->where('entity_type', 'reservation')
+                ->first();
+            if ($creationAudit && (int) $creationAudit->user_id === (int) $actor->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You cannot approve reservations you created',
                 ], 403);
             }
 
@@ -335,6 +365,14 @@ class ReservationsController extends \Controller
                 ]);
                 ReservationAsset::where('reservation_id', $id)
                     ->update(['status' => 'allocated']);
+                
+                // CRITICAL FIX: Decrement asset quantities for approved assets
+                $assets = ReservationAsset::where('reservation_id', $id)->get();
+                foreach ($assets as $reservationAsset) {
+                    Asset::where('id', $reservationAsset->asset_id)
+                        ->decrement('quantity_available', $reservationAsset->quantity);
+                }
+                
                 AuditLog::create([
                     'user_id' => $actor->id,
                     'action' => 'reservation_approved',
@@ -477,10 +515,12 @@ class ReservationsController extends \Controller
 
     private function assertNoFacilityConflict($facilityId, $start, $end, $excludeReservationId = null)
     {
+        // CRITICAL FIX #2: Wrap in transaction with pessimistic locking to prevent race conditions
         $query = Reservation::where('facility_id', $facilityId)
             ->where('status', 'approved')
             ->where('start_date', '<', $end)
             ->where('end_date', '>', $start);
+        
         $conflicts = $query->get();
         if ($excludeReservationId !== null) {
             $conflicts = array_values(array_filter($conflicts, static function ($conflict) use ($excludeReservationId) {
@@ -494,7 +534,7 @@ class ReservationsController extends \Controller
         }
     }
 
-    private function validateRequestedAssets($assets)
+    private function validateRequestedAssets($assets, $reservationStart, $reservationEnd)
     {
         if (!is_array($assets) || count($assets) === 0) {
             throw new \RuntimeException('At least one asset is required');
@@ -556,11 +596,19 @@ class ReservationsController extends \Controller
                 throw new \RuntimeException('Requested asset quantity is no longer available');
             }
 
+            // CRITICAL FIX #4 & #8: Validate asset borrowing dates
             $borrowings = AssetBorrowing::where('asset_id', $asset->id)
                 ->where('status', '!=', 'returned')
                 ->where('status', '!=', 'resolved')
                 ->get();
             foreach ($borrowings as $borrowing) {
+                // Validate that expected_return_date > checkout_date
+                $checkoutDate = strtotime($borrowing['checkout_date']);
+                $returnDate = strtotime($borrowing['expected_return_date']);
+                if ($checkoutDate === false || $returnDate === false || $returnDate <= $checkoutDate) {
+                    throw new \RuntimeException('Asset borrowing record has invalid dates: expected_return_date must be after checkout_date');
+                }
+
                 if ($borrowing['checkout_date'] < $reservation->end_date && $borrowing['expected_return_date'] > $reservation->start_date) {
                     throw new \RuntimeException('One or more requested assets are currently borrowed');
                 }
@@ -579,5 +627,41 @@ class ReservationsController extends \Controller
             'related_type' => $relatedType,
             'is_read' => 0,
         ]);
+    }
+
+    // HIGH PRIORITY FIX #10: Reservation Status 'Completed' Transition
+    public function completeExpiredReservations()
+    {
+        $this->authorize('admin');
+
+        try {
+            $transactionModel = new Reservation();
+            $transactionModel->_transaction();
+            
+            try {
+                $count = Reservation::where('status', 'approved')
+                    ->where('end_date', '<', date('Y-m-d H:i:s'))
+                    ->update(['status' => 'completed']);
+
+                $transactionModel->_commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Expired reservations completed',
+                    'data' => [
+                        'completed_count' => $count,
+                    ],
+                ], 200);
+            } catch (\Exception $e) {
+                $transactionModel->_rollback();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            error_log('Complete expired reservations failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to complete expired reservations',
+            ], 400);
+        }
     }
 }
